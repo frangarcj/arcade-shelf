@@ -94,7 +94,10 @@ for (;;) {
 ```
 
 It lists Resume, Restart game, Save states (with `state_slots` and
-`state_exists`), Options and Close game. Start + Select or Circle resumes.
+`state_exists`), Options, the application's `pause_actions` (they return
+`SHELF_PAUSE_ACTION` + their index; the menu stays open) and Close game.
+Start + Select or Circle resumes. `shelf_toast` shows a short message for
+two seconds over the shelf or the pause menu.
 
 ## Art
 

@@ -66,6 +66,8 @@ struct State {
 	bool adb_open;    /* the artwork download panel is shown */
 	ImGuiContext *imgui; /* ours, beside any the application has */
 	std::string notice;  /* shown over everything while set */
+	std::string toast;   /* shown at the bottom for a while */
+	float toast_time;    /* seconds left */
 	ImFont *font_small, *font_body, *font_title;
 };
 
@@ -728,6 +730,21 @@ void adb_input(unsigned buttons, float dt)
 
 namespace {
 
+/* The toast at y, fading out over its last half second. */
+void draw_toast(ImDrawList *draw, float dt, float y)
+{
+	if (s->toast.empty() || s->toast_time <= 0.0f)
+		return;
+	s->toast_time -= dt;
+	const float alpha = std::min(1.0f, std::max(0.0f, s->toast_time * 2.0f));
+	const ImVec2 size = s->font_body->CalcTextSizeA(17.0f, FLT_MAX, 0.0f, s->toast.c_str());
+	const float x = (s->width - size.x) * 0.5f;
+	draw->AddRectFilled(ImVec2(x - 18, y - 10), ImVec2(x + size.x + 18, y + size.y + 10), rgba(24, 29, 54, 0.95f * alpha),
+		10.0f);
+	draw->AddRect(ImVec2(x - 18, y - 10), ImVec2(x + size.x + 18, y + size.y + 10), rgba(255, 180, 0, 0.5f * alpha), 10.0f);
+	draw->AddText(s->font_body, 17.0f, ImVec2(x, y), rgba(245, 245, 250, alpha), s->toast.c_str());
+}
+
 /* An ImGui frame with one full-screen window to draw in. */
 ImDrawList *begin_overlay()
 {
@@ -960,6 +977,7 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 		options_draw(draw);
 	if (about_is_open())
 		about_draw(draw);
+	draw_toast(draw, io.DeltaTime, s->height - 92.0f);
 	if (!s->notice.empty()) {
 		const ImVec2 size = s->font_body->CalcTextSizeA(18.0f, FLT_MAX, 0.0f, s->notice.c_str());
 		const ImVec2 c(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
@@ -980,6 +998,12 @@ void shelf_notice(const char *text)
 	s->notice = text ? text : "";
 }
 
+void shelf_toast(const char *text)
+{
+	s->toast = text ? text : "";
+	s->toast_time = 2.0f;
+}
+
 void shelf_pause_open(const char *game, int slot, int save_states)
 {
 	pause_open(game, slot, save_states);
@@ -993,7 +1017,10 @@ int shelf_pause_frame(const ShelfInput *input, int *slot)
 	const int result = pause_input(input->buttons, ImGui::GetIO().DeltaTime, slot);
 	/* Over the application's frame: its GL state stays as it was. */
 	ui_gl_save_state(&state);
-	pause_draw(begin_overlay());
+	ImDrawList *draw = begin_overlay();
+	pause_draw(draw);
+	/* Above the menu's panel, which may reach the bottom. */
+	draw_toast(draw, ImGui::GetIO().DeltaTime, 16.0f);
 	end_overlay();
 	ui_gl_restore_state(&state);
 	return result;

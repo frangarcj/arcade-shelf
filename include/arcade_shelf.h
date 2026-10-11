@@ -93,6 +93,10 @@ typedef struct {
 	/* Save-state slots 0..state_slots-1 in the pause menu; 0: none. */
 	int state_slots;
 	int (*state_exists)(void *user, int slot);
+	/* The application's own pause menu items, before Close game; choosing
+	 * one returns SHELF_PAUSE_ACTION + its index and the menu stays open. */
+	const char *const *pause_actions;
+	int pause_action_count;
 } ShelfMenus;
 
 typedef struct {
@@ -130,6 +134,9 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size);
 /* A notice over the shelf ("Scanning games...") from the next frame until
  * it is cleared with NULL; draw a frame after setting it before slow work. */
 void shelf_notice(const char *text);
+/* A short message ("Cabinet art saved") at the bottom for two seconds, over
+ * the shelf or the pause menu. */
+void shelf_toast(const char *text);
 
 /* The pause menu, over a game: resume, restart, save states, options,
  * close. The application draws the game's last frame, then calls
@@ -137,7 +144,8 @@ void shelf_notice(const char *text);
  * Select or Circle resumes. */
 enum {
 	SHELF_PAUSE_NONE, SHELF_PAUSE_RESUME, SHELF_PAUSE_RESTART, SHELF_PAUSE_CLOSE,
-	SHELF_PAUSE_SAVE_STATE, SHELF_PAUSE_LOAD_STATE /* in the slot returned */
+	SHELF_PAUSE_SAVE_STATE, SHELF_PAUSE_LOAD_STATE, /* in the slot returned */
+	SHELF_PAUSE_ACTION = 16 /* + the index of a ShelfMenus pause action */
 };
 /* game: the title in the header. slot: the save-state slot shown first.
  * save_states: open on the save-state page (after saving, say). */

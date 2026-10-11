@@ -89,8 +89,9 @@ static int demo_state_exists(void *, int slot)
 	return demo_states.count(slot) != 0;
 }
 
+static const char *const kPauseActions[] = { "Take a picture" };
 static const ShelfMenus kMenus = { kOptions, (int)(sizeof(kOptions) / sizeof(kOptions[0])), NULL, demo_get, demo_set,
-	10, demo_state_exists };
+	10, demo_state_exists, kPauseActions, 1 };
 
 static const char kAbout[] =
 	"# arcade-shelf viewer\n"
@@ -378,13 +379,18 @@ int main(int argc, char **argv)
 			const int result = shelf_pause_frame(&input, &slot);
 			if (result != SHELF_PAUSE_NONE) {
 				static const char *names[] = { "", "resume", "restart", "close", "save", "load" };
-				printf("pause: %s, slot %d\n", names[result], slot);
-				/* As an application does: save, then back on the save-state page. */
-				if (result == SHELF_PAUSE_SAVE_STATE)
-					demo_states.insert(slot);
-				shelf_pause_open("Soul Calibur", slot, result == SHELF_PAUSE_SAVE_STATE);
-				if ((result == SHELF_PAUSE_RESUME || result == SHELF_PAUSE_CLOSE) && !scripted)
-					running = false;
+				if (result >= SHELF_PAUSE_ACTION) {
+					printf("pause: action %d\n", result - SHELF_PAUSE_ACTION);
+					shelf_toast("Picture taken");
+				} else {
+					printf("pause: %s, slot %d\n", names[result], slot);
+					/* As an application does: save, then back on the save-state page. */
+					if (result == SHELF_PAUSE_SAVE_STATE)
+						demo_states.insert(slot);
+					shelf_pause_open("Soul Calibur", slot, result == SHELF_PAUSE_SAVE_STATE);
+					if ((result == SHELF_PAUSE_RESUME || result == SHELF_PAUSE_CLOSE) && !scripted)
+						running = false;
+				}
 			}
 		} else {
 			glClearColor(0, 0, 0, 1);

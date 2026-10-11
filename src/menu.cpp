@@ -120,7 +120,7 @@ void arrow(ImDrawList *draw, float x, float y, int direction, ImU32 color)
 
 /* ---- pause menu ---- */
 
-enum { ITEM_RESUME, ITEM_RESTART, ITEM_STATES, ITEM_OPTIONS, ITEM_CLOSE };
+enum { ITEM_RESUME, ITEM_RESTART, ITEM_STATES, ITEM_OPTIONS, ITEM_CLOSE, ITEM_ACTION /* + index */ };
 enum { STATE_SAVE, STATE_LOAD, STATE_SLOT };
 
 struct Pause {
@@ -138,6 +138,8 @@ std::vector<int> pause_items()
 		items.push_back(ITEM_STATES);
 	if (menu_has_options())
 		items.push_back(ITEM_OPTIONS);
+	for (int i = 0; menus && i < menus->pause_action_count; i++)
+		items.push_back(ITEM_ACTION + i);
 	items.push_back(ITEM_CLOSE);
 	return items;
 }
@@ -149,7 +151,8 @@ const char *item_label(int item)
 	case ITEM_RESTART: return "Restart game";
 	case ITEM_STATES: return "Save states";
 	case ITEM_OPTIONS: return "Options";
-	default: return "Close game";
+	case ITEM_CLOSE: return "Close game";
+	default: return menus->pause_actions[item - ITEM_ACTION];
 	}
 }
 
@@ -436,7 +439,8 @@ int pause_input(unsigned buttons, float dt, int *slot)
 				pause.state_selected = STATE_SAVE;
 				break;
 			case ITEM_OPTIONS: options_open(); break;
-			default: result = SHELF_PAUSE_CLOSE; break;
+			case ITEM_CLOSE: result = SHELF_PAUSE_CLOSE; break;
+			default: result = SHELF_PAUSE_ACTION + items[pause.selected] - ITEM_ACTION; break;
 			}
 		}
 	}
