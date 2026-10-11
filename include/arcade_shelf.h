@@ -62,6 +62,39 @@ typedef struct {
 	uint32_t marquee_a, marquee_b;  /* generated marquee / label gradient */
 } ShelfSystemStyle;
 
+/* ---- options and save states, owned by the application ----
+ * Settings are strings by key. The shelf lists them (Square in the
+ * selector, Options in the pause menu) and changes them with set_option,
+ * which applies and saves them. */
+typedef struct {
+	const char *value; /* stored: "16:9_stretched" */
+	const char *label; /* shown: "16:9 Stretched" */
+} ShelfChoice;
+
+typedef struct {
+	const char *category;    /* heading, shown where it changes: "VIDEO" */
+	const char *label;       /* "Aspect Ratio" */
+	const char *description; /* shown under the list for the selected one */
+	const char *key;
+	const ShelfChoice *choices;
+	int choice_count;
+	/* After the choices, the whole numbers range_min..range_max, if
+	 * range_max > range_min, shown with range_suffix ("30%".."100%"). */
+	int range_min, range_max;
+	const char *range_suffix;
+} ShelfOption;
+
+typedef struct {
+	const ShelfOption *options;
+	int option_count;
+	void *user;
+	const char *(*get_option)(void *user, const char *key); /* NULL: unknown */
+	void (*set_option)(void *user, const char *key, const char *value);
+	/* Save-state slots 0..state_slots-1 in the pause menu; 0: none. */
+	int state_slots;
+	int (*state_exists)(void *user, int slot);
+} ShelfMenus;
+
 typedef struct {
 	const char *title, *title_accent; /* header: "PCSX" "ReArcade" */
 	const char *data_root;   /* art dirs, shelf.cfg */
@@ -69,8 +102,11 @@ typedef struct {
 	int width, height;       /* framebuffer size in pixels */
 	const ShelfSystemStyle *styles; /* the first one is the default */
 	int style_count;
+	const ShelfMenus *menus; /* not copied: kept until shelf_shutdown; NULL: none */
 } ShelfConfig;
 
+/* shelf_frame: Cross launches (after its animation), Triangle quits,
+ * Square opens the options. */
 enum { SHELF_NONE, SHELF_LAUNCH, SHELF_QUIT };
 
 /* Call with the GL context current. The configuration is copied. Returns
@@ -83,6 +119,20 @@ void shelf_set_games(const ShelfGame *games, int count);
 /* Draws one frame into the bound framebuffer. On SHELF_LAUNCH, launch
  * holds the chosen version's launch string. */
 int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size);
+
+/* The pause menu, over a game: resume, restart, save states, options,
+ * close. The application draws the game's last frame, then calls
+ * shelf_pause_frame, which draws over it and keeps the GL state. Start +
+ * Select or Circle resumes. */
+enum {
+	SHELF_PAUSE_NONE, SHELF_PAUSE_RESUME, SHELF_PAUSE_RESTART, SHELF_PAUSE_CLOSE,
+	SHELF_PAUSE_SAVE_STATE, SHELF_PAUSE_LOAD_STATE /* in the slot returned */
+};
+/* game: the title in the header. slot: the save-state slot shown first.
+ * save_states: open on the save-state page (after saving, say). */
+void shelf_pause_open(const char *game, int slot, int save_states);
+/* *slot: the slot selected now, for any result. */
+int shelf_pause_frame(const ShelfInput *input, int *slot);
 
 /* Art, in data_root, by the version's art name (its id unless art is set;
  * MAME set names for arcade):

@@ -54,7 +54,8 @@ Controls:
 | Up / down | Version |
 | Right stick | Turn and tilt the selected object |
 | Cross or Start | Play |
-| Circle | Exit |
+| Square | Options (when the application gives some) |
+| Triangle | Exit |
 
 Play first plays an insert animation, after the Socket frontend: a disc
 rises spinning faster and faster, stands upright and goes straight down
@@ -64,6 +65,34 @@ as if entering the game. The screen then fades to black, and `shelf_frame` retur
 
 The last game and the version chosen for each game are kept in
 `<data_root>/shelf.cfg`.
+
+## Options and pause menu
+
+`ShelfConfig.menus` gives the application's settings: a table of
+`ShelfOption` (a heading, a label, a description, a key, and the values: a
+list of choices, then optionally a range of numbers such as 30%-100%) and
+`get_option` / `set_option` callbacks that read, apply and save them. The
+selector shows them on Square.
+
+The pause menu runs over a game: the application draws the game's last
+frame, then calls `shelf_pause_frame` each frame, which draws over it and
+leaves the GL state as it was.
+
+```c
+shelf_pause_open("Soul Calibur", slot, 0);
+for (;;) {
+	/* draw the game's last frame */
+	int result = shelf_pause_frame(&input, &slot);
+	if (result == SHELF_PAUSE_SAVE_STATE) { /* save to slot, then reopen: */
+		shelf_pause_open("Soul Calibur", slot, 1); /* on the save-state page */
+	}
+	if (result == SHELF_PAUSE_RESUME) break;
+	/* also RESTART, CLOSE, LOAD_STATE; swap buffers */
+}
+```
+
+It lists Resume, Restart game, Save states (with `state_slots` and
+`state_exists`), Options and Close game. Start + Select or Circle resumes.
 
 ## Art
 
@@ -82,7 +111,7 @@ colours, and the screen shows the id. The library ships no game art.
 
 ## Artwork download (optional)
 
-With `ADB=1`, triangle opens a panel that downloads the missing snaps,
+With `ADB=1`, Select opens a panel that downloads the missing snaps,
 titles and marquees of the arcade games from
 [Arcade Database](https://adb.arcadeitalia.net) by motoschifo, together
 with each set's control data. It follows the service's published rules:
@@ -108,7 +137,9 @@ make ADB=1 ...                # with the artwork download (libcurl)
 ```
 
 The library builds its own Dear ImGui 1.61, which is the version that VitaSDK
-ships. An application that uses arcade-shelf must not link another ImGui. It
+ships. An application that uses arcade-shelf must not link another ImGui,
+unless it builds the library with `make vita IMGUI=system`: then both use
+VitaSDK's `libimgui`, and the library keeps its own ImGui context. It
 links libpng, zlib and its GL: vitaGL on the Vita, `-framework OpenGL` on
 macOS.
 
@@ -116,7 +147,8 @@ macOS.
 
 `build/viewer` runs the selector on macOS with a catalogue from a text file
 (`examples/viewer/demo_catalog.tsv`). It takes the keyboard (arrows; Z play;
-X exit; J L I K right stick) or a game controller.
+A options; S or Esc exit; J L I K right stick) or a game controller.
+`--pause` shows the pause menu instead, over a stand-in game frame.
 
 It can also run headless with a fixed time step and save screenshots, to
 check the UI without a display:

@@ -16,7 +16,16 @@ bool ui_gl_init(void);
 void ui_gl_shutdown(void);
 /* Draws a frame of ImGui into the bound framebuffer (width x height). */
 void ui_gl_render(ImDrawData *draw_data, int width, int height);
-/* Loads an RGBA texture from a PNG file; false if missing or invalid. */
+/* The GL state an overlay changes, to draw over the application's frame. */
+typedef struct {
+	int framebuffer, viewport[4], program, active_texture, texture0, array_buffer, element_buffer;
+	int blend_equation[2], blend_func[4], scissor_box[4];
+	unsigned char blend, depth, cull, stencil, scissor, alpha_test, depth_mask, color_mask[4];
+} UiGlState;
+void ui_gl_save_state(UiGlState *state);
+void ui_gl_restore_state(const UiGlState *state);
+/* Loads an RGBA texture from a PNG file, shrunk to fit 512 x 512; false if
+ * missing or invalid. */
 bool ui_gl_load_png(const char *path, UiTexture *texture);
 void ui_gl_free_texture(UiTexture *texture);
 /* Draws ImGui draw lists that are not part of an ImGui frame. */

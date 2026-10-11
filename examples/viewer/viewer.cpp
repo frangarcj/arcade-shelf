@@ -2,12 +2,14 @@
  * catalogue from a text file, to work on the UI and to check it with
  * scripted screenshots.
  *
- *   build/viewer [--catalog FILE] [--data DIR]
+ *   build/viewer [--catalog FILE] [--data DIR] [--pause]
  *       [--script STEPS] [--step-frames N] [--shot FILE.png] [--shots DIR] [--headless]
  *
- * Keys: arrows; Z or Enter = cross (play); X or Esc = circle (exit);
- * S = triangle; A = square; Q/W = L/R; J L I K = right stick (turns the
- * cabinet). A game controller works too.
+ * Keys: arrows; Z or Enter = cross (play); X = circle; S or Esc = triangle
+ * (exit); A = square (options); Q/W = L/R; Tab = select; Space = start;
+ * J L I K = right stick (turns the cabinet). A game controller works too.
+ * --pause shows the pause menu over a stand-in game frame instead.
+ * The options and save states are a demo kept in memory.
  * --script runs a comma-separated button list (U D L R X O T S LB RB ST SE,
  * or "-" for no button), one press every --step-frames frames, then exits;
  * SL SR SU SD hold the right stick for a whole step.
@@ -33,6 +35,8 @@
 #include <png.h>
 
 #include <fstream>
+#include <map>
+#include <set>
 #include <sstream>
 
 #include "arcade_shelf.h"
@@ -48,6 +52,58 @@ static const ShelfSystemStyle kStyles[] = {
 	{ "Konami GV", 0xff4c7822, 0xff1e82f5, 0xff3a5c1a, 0xff18280a, 0xff2896fa, 0xff5aa028 },
 	{ "Sony PlayStation", 0xff4a4440, 0xffb8b4b0, 0xff3a3634, 0xff1a1816, 0xff3a2ad0, 0xffd08a20 },
 };
+
+/* Demo settings, as an application would give them. */
+static const ShelfChoice kAspect[] = { { "4:3", "4:3" }, { "16:9", "16:9 Stretched" } };
+static const ShelfChoice kToggle[] = { { "off", "Off" }, { "on", "On" } };
+static const ShelfChoice kAuto[] = { { "auto", "Auto" } };
+static const ShelfChoice kRegion[] = { { "auto", "Auto" }, { "ntsc", "NTSC" }, { "pal", "PAL" } };
+static const ShelfOption kOptions[] = {
+	{ "SYSTEM", "Region", "The console's video region. Auto takes it from the game.", "region", kRegion, 3, 0, 0, NULL },
+	{ "SYSTEM", "CPU Clock", "The emulated CPU's clock. Leave it on Auto unless a game needs other timing.", "clock",
+	  kAuto, 1, 30, 100, "%" },
+	{ "VIDEO", "Aspect Ratio", "4:3 is the original picture; 16:9 stretches it to the screen.", "aspect", kAspect, 2,
+	  0, 0, NULL },
+	{ "VIDEO", "Smoothing", "Filters the picture when it is scaled.", "smooth", kToggle, 2, 0, 0, NULL },
+	{ "AUDIO", "Reverb", "The sound chip's reverb effects.", "reverb", kToggle, 2, 0, 0, NULL },
+};
+static std::map<std::string, std::string> demo_settings = {
+	{ "region", "auto" }, { "clock", "auto" }, { "aspect", "4:3" }, { "smooth", "on" }, { "reverb", "on" }
+};
+static std::set<int> demo_states;
+
+static const char *demo_get(void *, const char *key)
+{
+	const auto it = demo_settings.find(key);
+	return it == demo_settings.end() ? NULL : it->second.c_str();
+}
+
+static void demo_set(void *, const char *key, const char *value)
+{
+	demo_settings[key] = value;
+}
+
+static int demo_state_exists(void *, int slot)
+{
+	return demo_states.count(slot) != 0;
+}
+
+static const ShelfMenus kMenus = { kOptions, (int)(sizeof(kOptions) / sizeof(kOptions[0])), NULL, demo_get, demo_set,
+	10, demo_state_exists };
+
+/* A stand-in for a game's frame under the pause menu. */
+static void draw_game_frame(void)
+{
+	glEnable(GL_SCISSOR_TEST);
+	for (int y = 0; y < HEIGHT; y += 68)
+		for (int x = 0; x < WIDTH; x += 80) {
+			const int odd = (x / 80 + y / 68) & 1;
+			glScissor(x, y, 80, 68);
+			glClearColor(odd ? 0.85f : 0.2f, 0.35f + 0.3f * y / HEIGHT, odd ? 0.3f : 0.75f, 1);
+			glClear(GL_COLOR_BUFFER_BIT);
+		}
+	glDisable(GL_SCISSOR_TEST);
+}
 
 /* The catalogue file; strings live in the vectors. */
 struct Catalogue {
@@ -151,9 +207,11 @@ static unsigned keyboard_buttons(void)
 	if (keys[SDL_SCANCODE_LEFT]) buttons |= SHELF_LEFT;
 	if (keys[SDL_SCANCODE_RIGHT]) buttons |= SHELF_RIGHT;
 	if (keys[SDL_SCANCODE_Z] || keys[SDL_SCANCODE_RETURN]) buttons |= SHELF_CROSS;
-	if (keys[SDL_SCANCODE_X] || keys[SDL_SCANCODE_ESCAPE]) buttons |= SHELF_CIRCLE;
-	if (keys[SDL_SCANCODE_S]) buttons |= SHELF_TRIANGLE;
+	if (keys[SDL_SCANCODE_X]) buttons |= SHELF_CIRCLE;
+	if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_ESCAPE]) buttons |= SHELF_TRIANGLE;
 	if (keys[SDL_SCANCODE_A]) buttons |= SHELF_SQUARE;
+	if (keys[SDL_SCANCODE_TAB]) buttons |= SHELF_SELECT;
+	if (keys[SDL_SCANCODE_SPACE]) buttons |= SHELF_START;
 	if (keys[SDL_SCANCODE_Q]) buttons |= SHELF_L;
 	if (keys[SDL_SCANCODE_W]) buttons |= SHELF_R;
 	return buttons;
@@ -183,13 +241,14 @@ int main(int argc, char **argv)
 	const char *catalog = "examples/viewer/demo_catalog.tsv", *data = "build/viewer-data", *shot = NULL, *shots = NULL;
 	std::vector<unsigned> script;
 	std::vector<std::pair<float, float> > script_sticks;
-	int step_frames = 15, headless = 0, result = 0;
+	int step_frames = 15, headless = 0, result = 0, pause = 0, slot = 0;
 	for (int i = 1; i < argc; i++) {
 		const std::string arg = argv[i];
 		const bool has_value = i + 1 < argc;
 		if (arg == "--catalog" && has_value) catalog = argv[++i];
 		else if (arg == "--data" && has_value) data = argv[++i];
 		else if (arg == "--headless") headless = 1;
+		else if (arg == "--pause") pause = 1;
 		else if (arg == "--shot" && has_value) shot = argv[++i];
 		else if (arg == "--shots" && has_value) shots = argv[++i];
 		else if (arg == "--step-frames" && has_value) step_frames = atoi(argv[++i]);
@@ -251,12 +310,15 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	ShelfConfig config = { "arcade", "shelf", data, "Add games to the catalogue file.", WIDTH, HEIGHT,
-		kStyles, (int)(sizeof(kStyles) / sizeof(kStyles[0])) };
+		kStyles, (int)(sizeof(kStyles) / sizeof(kStyles[0])), &kMenus };
 	if (!shelf_init(&config)) {
 		fprintf(stderr, "viewer: init failed\n");
 		return 1;
 	}
-	shelf_set_games(catalogue.games.data(), (int)catalogue.games.size());
+	if (pause)
+		shelf_pause_open("Soul Calibur", slot, 0);
+	else
+		shelf_set_games(catalogue.games.data(), (int)catalogue.games.size());
 
 	SDL_Gamepad *pad = NULL;
 	Uint64 last = SDL_GetTicksNS();
@@ -297,10 +359,26 @@ int main(int argc, char **argv)
 			if (keys[SDL_SCANCODE_K]) stick_y = 1;
 		}
 		char launch[1024];
-		glClearColor(0, 0, 0, 1);
-		glClear(GL_COLOR_BUFFER_BIT);
 		const ShelfInput input = { buttons, stick_x, stick_y, dt };
-		const int action = shelf_frame(&input, launch, sizeof(launch));
+		int action = SHELF_NONE;
+		if (pause) {
+			draw_game_frame();
+			const int result = shelf_pause_frame(&input, &slot);
+			if (result != SHELF_PAUSE_NONE) {
+				static const char *names[] = { "", "resume", "restart", "close", "save", "load" };
+				printf("pause: %s, slot %d\n", names[result], slot);
+				/* As an application does: save, then back on the save-state page. */
+				if (result == SHELF_PAUSE_SAVE_STATE)
+					demo_states.insert(slot);
+				shelf_pause_open("Soul Calibur", slot, result == SHELF_PAUSE_SAVE_STATE);
+				if ((result == SHELF_PAUSE_RESUME || result == SHELF_PAUSE_CLOSE) && !scripted)
+					running = false;
+			}
+		} else {
+			glClearColor(0, 0, 0, 1);
+			glClear(GL_COLOR_BUFFER_BIT);
+			action = shelf_frame(&input, launch, sizeof(launch));
+		}
 		frame++;
 		if (scripted && frame % step_frames == 0) {
 			if (shots) {

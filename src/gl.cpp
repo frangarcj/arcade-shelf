@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
+
 #include <png.h>
 #include <imgui.h>
 
@@ -464,6 +466,102 @@ void ui_gl3d_end(void)
 	glUseProgram(0);
 }
 
+/* Art larger than this is shrunk on load: covers are often scans of
+ * 1000+ pixels, and the Vita's GPU memory is small. */
+static const int kMaxTexture = 512;
+
+/* Shrinks RGBA pixels in place to fit kMaxTexture, averaging each block. */
+static void shrink(unsigned char *pixels, int *width, int *height)
+{
+	const int w = *width, h = *height;
+	const float scale = std::min((float)kMaxTexture / w, (float)kMaxTexture / h);
+	const int dw = std::max(1, (int)(w * scale)), dh = std::max(1, (int)(h * scale));
+	for (int y = 0; y < dh; y++) {
+		const int y0 = y * h / dh, y1 = std::max(y0 + 1, (y + 1) * h / dh);
+		for (int x = 0; x < dw; x++) {
+			const int x0 = x * w / dw, x1 = std::max(x0 + 1, (x + 1) * w / dw);
+			unsigned sum[4] = { 0, 0, 0, 0 };
+			for (int sy = y0; sy < y1; sy++)
+				for (int sx = x0; sx < x1; sx++)
+					for (int c = 0; c < 4; c++)
+						sum[c] += pixels[((size_t)sy * w + sx) * 4 + c];
+			const unsigned n = (unsigned)((y1 - y0) * (x1 - x0));
+			/* Rows already written are above every row still read. */
+			for (int c = 0; c < 4; c++)
+				pixels[((size_t)y * dw + x) * 4 + c] = (unsigned char)(sum[c] / n);
+		}
+	}
+	*width = dw;
+	*height = dh;
+}
+
+void ui_gl_save_state(UiGlState *state)
+{
+	GLboolean depth_mask, color_mask[4];
+	glGetIntegerv(FB_BINDING, &state->framebuffer);
+	glGetIntegerv(GL_VIEWPORT, state->viewport);
+	glGetIntegerv(GL_CURRENT_PROGRAM, &state->program);
+	glGetIntegerv(GL_ACTIVE_TEXTURE, &state->active_texture);
+	glActiveTexture(GL_TEXTURE0);
+	glGetIntegerv(GL_TEXTURE_BINDING_2D, &state->texture0);
+	glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &state->array_buffer);
+	glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &state->element_buffer);
+	glGetIntegerv(GL_BLEND_EQUATION_RGB, &state->blend_equation[0]);
+	glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &state->blend_equation[1]);
+	glGetIntegerv(GL_BLEND_SRC_RGB, &state->blend_func[0]);
+	glGetIntegerv(GL_BLEND_DST_RGB, &state->blend_func[1]);
+	glGetIntegerv(GL_BLEND_SRC_ALPHA, &state->blend_func[2]);
+	glGetIntegerv(GL_BLEND_DST_ALPHA, &state->blend_func[3]);
+	glGetIntegerv(GL_SCISSOR_BOX, state->scissor_box);
+	state->blend = glIsEnabled(GL_BLEND);
+	state->depth = glIsEnabled(GL_DEPTH_TEST);
+	state->cull = glIsEnabled(GL_CULL_FACE);
+	state->stencil = glIsEnabled(GL_STENCIL_TEST);
+	state->scissor = glIsEnabled(GL_SCISSOR_TEST);
+	state->alpha_test = glIsEnabled(GL_ALPHA_TEST);
+	glGetBooleanv(GL_DEPTH_WRITEMASK, &depth_mask);
+	glGetBooleanv(GL_COLOR_WRITEMASK, color_mask);
+	state->depth_mask = depth_mask;
+	memcpy(state->color_mask, color_mask, 4);
+	/* The overlay's own state. */
+	glDisable(GL_ALPHA_TEST);
+	glDepthMask(GL_FALSE);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+}
+
+static void set_enabled(GLenum cap, unsigned char enabled)
+{
+	if (enabled)
+		glEnable(cap);
+	else
+		glDisable(cap);
+}
+
+void ui_gl_restore_state(const UiGlState *state)
+{
+	FB_BIND(FB_TARGET, (GLuint)state->framebuffer);
+	glViewport(state->viewport[0], state->viewport[1], state->viewport[2], state->viewport[3]);
+	glUseProgram((GLuint)state->program);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, (GLuint)state->texture0);
+	glActiveTexture((GLenum)state->active_texture);
+	glBindBuffer(GL_ARRAY_BUFFER, (GLuint)state->array_buffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, (GLuint)state->element_buffer);
+	glBlendEquationSeparate((GLenum)state->blend_equation[0], (GLenum)state->blend_equation[1]);
+	glBlendFuncSeparate((GLenum)state->blend_func[0], (GLenum)state->blend_func[1], (GLenum)state->blend_func[2],
+		(GLenum)state->blend_func[3]);
+	glScissor(state->scissor_box[0], state->scissor_box[1], state->scissor_box[2], state->scissor_box[3]);
+	glDepthMask(state->depth_mask);
+	glColorMask(state->color_mask[0], state->color_mask[1], state->color_mask[2], state->color_mask[3]);
+	set_enabled(GL_BLEND, state->blend);
+	set_enabled(GL_DEPTH_TEST, state->depth);
+	set_enabled(GL_CULL_FACE, state->cull);
+	set_enabled(GL_STENCIL_TEST, state->stencil);
+	set_enabled(GL_SCISSOR_TEST, state->scissor);
+	set_enabled(GL_ALPHA_TEST, state->alpha_test);
+}
+
 bool ui_gl_load_png(const char *path, UiTexture *texture)
 {
 	png_image image;
@@ -479,9 +577,12 @@ bool ui_gl_load_png(const char *path, UiTexture *texture)
 		png_image_free(&image);
 		return false;
 	}
-	texture->id = make_texture((int)image.width, (int)image.height, pixels);
-	texture->width = (int)image.width;
-	texture->height = (int)image.height;
+	int width = (int)image.width, height = (int)image.height;
+	if (width > kMaxTexture || height > kMaxTexture)
+		shrink(pixels, &width, &height);
+	texture->id = make_texture(width, height, pixels);
+	texture->width = width;
+	texture->height = height;
 	free(pixels);
 	return texture->id != 0;
 }

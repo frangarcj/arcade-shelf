@@ -12,7 +12,7 @@
 
 ADB ?= 0
 IMGUI ?= bundled
-SOURCES_CXX := src/shelf.cpp src/gl.cpp src/cabinet3d.cpp src/disc3d.cpp
+SOURCES_CXX := src/shelf.cpp src/menu.cpp src/gl.cpp src/cabinet3d.cpp src/disc3d.cpp
 ifeq ($(IMGUI),bundled)
 SOURCES_CXX += deps/imgui/imgui.cpp deps/imgui/imgui_draw.cpp
 IMGUI_FLAGS := -Ideps/imgui

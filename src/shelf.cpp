@@ -11,6 +11,8 @@
 #include <imgui.h>
 
 #include "gl.h"
+#include "theme.h"
+#include "menu.h"
 #include "cabinet3d.h"
 #include "disc3d.h"
 #ifdef ARCADE_SHELF_ADB
@@ -52,9 +54,7 @@ struct State {
 	std::vector<Game> games;
 	int game;          /* selected game */
 	float scroll;      /* carousel position, eases toward game */
-	unsigned previous; /* buttons last frame */
-	float repeat_time;
-	unsigned repeat_button;
+	theme::Keys keys;
 	std::vector<Art> art;
 	std::vector<std::pair<std::string, unsigned> > kick; /* kick panel per system */
 	unsigned frame;
@@ -121,6 +121,9 @@ void load_config()
 
 void save_config()
 {
+	/* No catalogue (the pause menu): keep the selector's choices. */
+	if (s->games.empty())
+		return;
 	FILE *f = fopen(config_path().c_str(), "w");
 	if (!f)
 		return;
@@ -188,12 +191,92 @@ Art *art_for(const Game &game)
 	return &s->art.back();
 }
 
+} // namespace
+
 /* ---- drawing helpers ---- */
 
-ImU32 rgba(int r, int g, int b, float a = 1.0f)
+namespace theme {
+
+ImFont *font_small() { return s->font_small; }
+ImFont *font_body() { return s->font_body; }
+ImFont *font_title() { return s->font_title; }
+
+ImU32 rgba(int r, int g, int b, float a)
 {
 	return IM_COL32(r, g, b, (int)(a * 255.0f));
 }
+
+void centred_text(ImDrawList *draw, ImFont *font, float size, float x0, float x1, float y, ImU32 color, const char *text)
+{
+	ImVec2 extent = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+	if (extent.x > x1 - x0) {
+		size *= (x1 - x0) / extent.x;
+		extent = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+	}
+	draw->AddText(font, size, ImVec2(floorf((x0 + x1 - extent.x) * 0.5f), floorf(y - extent.y * 0.5f)), color, text);
+}
+
+float hint(ImDrawList *draw, float x, float y, unsigned button, const char *caption)
+{
+	const ImVec2 c(x + 9, y);
+	draw->AddCircleFilled(c, 9.0f, rgba(40, 44, 64), 20);
+	switch (button) {
+	case SHELF_CROSS:
+		draw->AddLine(ImVec2(c.x - 4, c.y - 4), ImVec2(c.x + 4, c.y + 4), rgba(120, 170, 255), 2.0f);
+		draw->AddLine(ImVec2(c.x - 4, c.y + 4), ImVec2(c.x + 4, c.y - 4), rgba(120, 170, 255), 2.0f);
+		break;
+	case SHELF_CIRCLE:
+		draw->AddCircle(c, 4.5f, rgba(255, 110, 110), 16, 2.0f);
+		break;
+	case SHELF_TRIANGLE: {
+		const ImVec2 t[3] = { ImVec2(c.x, c.y - 5), ImVec2(c.x + 5, c.y + 4), ImVec2(c.x - 5, c.y + 4) };
+		draw->AddPolyline(t, 3, rgba(100, 220, 160), true, 2.0f);
+		break;
+	}
+	case SHELF_SQUARE:
+		draw->AddRect(ImVec2(c.x - 4, c.y - 4), ImVec2(c.x + 4, c.y + 4), rgba(240, 130, 220), 0.0f, 0, 2.0f);
+		break;
+	default:
+		break;
+	}
+	const ImVec2 extent = s->font_small->CalcTextSizeA(15.0f, FLT_MAX, 0.0f, caption);
+	draw->AddText(s->font_small, 15.0f, ImVec2(x + 24, y - extent.y * 0.5f), rgba(235, 235, 245), caption);
+	return x + 24 + extent.x + 22;
+}
+
+float text_hint(ImDrawList *draw, float x, float y, const char *key, const char *caption)
+{
+	const ImVec2 key_size = s->font_small->CalcTextSizeA(13.0f, FLT_MAX, 0.0f, key);
+	draw->AddRectFilled(ImVec2(x, y - 9), ImVec2(x + key_size.x + 12, y + 9), rgba(40, 44, 64), 4.0f);
+	draw->AddText(s->font_small, 13.0f, ImVec2(x + 6, y - key_size.y * 0.5f), rgba(200, 205, 230), key);
+	const ImVec2 extent = s->font_small->CalcTextSizeA(15.0f, FLT_MAX, 0.0f, caption);
+	draw->AddText(s->font_small, 15.0f, ImVec2(x + key_size.x + 18, y - extent.y * 0.5f), rgba(235, 235, 245), caption);
+	return x + key_size.x + 18 + extent.x + 22;
+}
+
+bool Keys::pressed(unsigned buttons, unsigned button, float dt)
+{
+	const bool now = (buttons & button) != 0, before = (previous & button) != 0;
+	if (now && !before) {
+		repeat_button = button;
+		repeat_time = 0.32f;
+		return true;
+	}
+	if (now && repeat_button == button && (button & (SHELF_UP | SHELF_DOWN | SHELF_LEFT | SHELF_RIGHT))) {
+		repeat_time -= dt;
+		if (repeat_time <= 0.0f) {
+			repeat_time += 0.085f;
+			return true;
+		}
+	}
+	return false;
+}
+
+} // namespace theme
+
+namespace {
+
+using namespace theme;
 
 /* Moves a colour toward the background: light 1 keeps it, 0 is the background. */
 ImU32 fade(ImU32 color, float light)
@@ -205,17 +288,6 @@ ImU32 fade(ImU32 color, float light)
 		channel[i] = background[i] + (int)((value - background[i]) * light);
 	}
 	return IM_COL32(channel[0], channel[1], channel[2], (color >> IM_COL32_A_SHIFT) & 0xff);
-}
-
-/* Draws text centred in [x0, x1] at y, shrunk to fit. */
-void centred_text(ImDrawList *draw, ImFont *font, float size, float x0, float x1, float y, ImU32 color, const char *text)
-{
-	ImVec2 extent = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
-	if (extent.x > x1 - x0) {
-		size *= (x1 - x0) / extent.x;
-		extent = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
-	}
-	draw->AddText(font, size, ImVec2(floorf((x0 + x1 - extent.x) * 0.5f), floorf(y - extent.y * 0.5f)), color, text);
 }
 
 /* Draws a texture inside a box, keeping its proportions (fit) or filling
@@ -234,42 +306,6 @@ void image_box(ImDrawList *draw, const UiTexture &texture, ImVec2 a, ImVec2 b, I
 	const float scale = std::max(sx, sy);
 	const float u = (box_w / scale) / texture.width, v = (box_h / scale) / texture.height;
 	draw->AddImage(id, a, b, ImVec2(0.5f - u * 0.5f, 0.5f - v * 0.5f), ImVec2(0.5f + u * 0.5f, 0.5f + v * 0.5f), tint);
-}
-
-/* A PlayStation face button glyph, then its caption; returns the next x. */
-float hint(ImDrawList *draw, float x, float y, unsigned button, const char *caption)
-{
-	const ImVec2 c(x + 9, y);
-	draw->AddCircleFilled(c, 9.0f, rgba(40, 44, 64), 20);
-	switch (button) {
-	case SHELF_CROSS:
-		draw->AddLine(ImVec2(c.x - 4, c.y - 4), ImVec2(c.x + 4, c.y + 4), rgba(120, 170, 255), 2.0f);
-		draw->AddLine(ImVec2(c.x - 4, c.y + 4), ImVec2(c.x + 4, c.y - 4), rgba(120, 170, 255), 2.0f);
-		break;
-	case SHELF_CIRCLE:
-		draw->AddCircle(c, 4.5f, rgba(255, 110, 110), 16, 2.0f);
-		break;
-	case SHELF_TRIANGLE: {
-		const ImVec2 t[3] = { ImVec2(c.x, c.y - 5), ImVec2(c.x + 5, c.y + 4), ImVec2(c.x - 5, c.y + 4) };
-		draw->AddPolyline(t, 3, rgba(100, 220, 160), true, 2.0f);
-		break;
-	}
-	default:
-		break;
-	}
-	const ImVec2 extent = s->font_small->CalcTextSizeA(15.0f, FLT_MAX, 0.0f, caption);
-	draw->AddText(s->font_small, 15.0f, ImVec2(x + 24, y - extent.y * 0.5f), rgba(235, 235, 245), caption);
-	return x + 24 + extent.x + 22;
-}
-
-float text_hint(ImDrawList *draw, float x, float y, const char *key, const char *caption)
-{
-	const ImVec2 key_size = s->font_small->CalcTextSizeA(13.0f, FLT_MAX, 0.0f, key);
-	draw->AddRectFilled(ImVec2(x, y - 9), ImVec2(x + key_size.x + 12, y + 9), rgba(40, 44, 64), 4.0f);
-	draw->AddText(s->font_small, 13.0f, ImVec2(x + 6, y - key_size.y * 0.5f), rgba(200, 205, 230), key);
-	const ImVec2 extent = s->font_small->CalcTextSizeA(15.0f, FLT_MAX, 0.0f, caption);
-	draw->AddText(s->font_small, 15.0f, ImVec2(x + key_size.x + 18, y - extent.y * 0.5f), rgba(235, 235, 245), caption);
-	return x + key_size.x + 18 + extent.x + 22;
 }
 
 /* ---- generated surfaces of the 3D objects ---- */
@@ -528,7 +564,10 @@ void draw_frame(ImDrawList *draw)
 	if (s->games.empty()) {
 		centred_text(draw, s->font_title, 26.0f, 40, W - 40, H * 0.42f, rgba(235, 235, 245), "No games found");
 		centred_text(draw, s->font_body, 17.0f, 40, W - 40, H * 0.42f + 40, rgba(170, 175, 200), s->empty_hint.c_str());
-		hint(draw, 32, H - 24, SHELF_CIRCLE, "Exit");
+		float x = 32;
+		if (menu_has_options())
+			x = hint(draw, x, H - 24, SHELF_SQUARE, "Options");
+		hint(draw, x, H - 24, SHELF_TRIANGLE, "Exit");
 		return;
 	}
 
@@ -593,28 +632,17 @@ void draw_frame(ImDrawList *draw)
 	x = text_hint(draw, x, fy, "< >", "Game");
 	if (game.versions.size() > 1)
 		x = text_hint(draw, x, fy, "^ v", "Version");
+	if (menu_has_options())
+		x = hint(draw, x, fy, SHELF_SQUARE, "Options");
 #ifdef ARCADE_SHELF_ADB
-	x = hint(draw, x, fy, SHELF_TRIANGLE, "Artwork");
+	x = text_hint(draw, x, fy, "SELECT", "Artwork");
 #endif
-	hint(draw, W - 110, fy, SHELF_CIRCLE, "Exit");
+	hint(draw, W - 110, fy, SHELF_TRIANGLE, "Exit");
 }
 
 bool pressed(unsigned buttons, unsigned button, float dt)
 {
-	const bool now = (buttons & button) != 0, before = (s->previous & button) != 0;
-	if (now && !before) {
-		s->repeat_button = button;
-		s->repeat_time = 0.32f;
-		return true;
-	}
-	if (now && s->repeat_button == button && (button & (SHELF_UP | SHELF_DOWN | SHELF_LEFT | SHELF_RIGHT))) {
-		s->repeat_time -= dt;
-		if (s->repeat_time <= 0.0f) {
-			s->repeat_time += 0.085f;
-			return true;
-		}
-	}
-	return false;
+	return s->keys.pressed(buttons, button, dt);
 }
 
 #ifdef ARCADE_SHELF_ADB
@@ -691,6 +719,32 @@ void adb_input(unsigned buttons, float dt)
 
 } // namespace
 
+namespace {
+
+/* An ImGui frame with one full-screen window to draw in. */
+ImDrawList *begin_overlay()
+{
+	ImGui::NewFrame();
+	ImGui::SetNextWindowPos(ImVec2(0, 0));
+	ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+	ImGui::SetNextWindowBgAlpha(0.0f);
+	ImGui::Begin("##shelf", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs);
+	return ImGui::GetWindowDrawList();
+}
+
+void end_overlay()
+{
+	ImGui::End();
+	ImGui::PopStyleVar(2);
+	ImGui::Render();
+	ui_gl_render(ImGui::GetDrawData(), s->width, s->height);
+}
+
+} // namespace
+
 int shelf_init(const ShelfConfig *config)
 {
 	ImFontConfig font_config;
@@ -718,6 +772,7 @@ int shelf_init(const ShelfConfig *config)
 	s->font_small = io.Fonts->AddFontFromMemoryTTF(Roboto_Medium_ttf, sizeof(Roboto_Medium_ttf), 15.0f, &font_config);
 	s->font_body = io.Fonts->AddFontFromMemoryTTF(Roboto_Medium_ttf, sizeof(Roboto_Medium_ttf), 18.0f, &font_config);
 	s->font_title = io.Fonts->AddFontFromMemoryTTF(Roboto_Medium_ttf, sizeof(Roboto_Medium_ttf), 30.0f, &font_config);
+	menu_init(config->menus, (float)config->width, (float)config->height);
 	return ui_gl_init() && cabinet3d_init() && disc3d_init();
 }
 
@@ -779,7 +834,8 @@ void shelf_shutdown(void)
 int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 {
 	int action = SHELF_NONE;
-	unsigned buttons = input->buttons;
+	const unsigned held = input->buttons;
+	unsigned buttons = held;
 	ImGui::SetCurrentContext(s->imgui);
 	ImGuiIO &io = ImGui::GetIO();
 	s->frame++;
@@ -798,7 +854,7 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 	if (s->adb_open) {
 		adb_input(buttons, io.DeltaTime);
 		buttons = 0;
-	} else if (pressed(buttons, SHELF_TRIANGLE, io.DeltaTime) && !s->games.empty()) {
+	} else if (pressed(buttons, SHELF_SELECT, io.DeltaTime) && !s->games.empty()) {
 		s->adb_open = true;
 		buttons = 0;
 	}
@@ -813,7 +869,14 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 		}
 		buttons = 0;
 	}
-	if (pressed(buttons, SHELF_CIRCLE, io.DeltaTime))
+	if (options_is_open()) {
+		options_input(buttons, io.DeltaTime);
+		buttons = 0;
+	} else if (pressed(buttons, SHELF_SQUARE, io.DeltaTime) && menu_has_options()) {
+		options_open();
+		buttons = 0;
+	}
+	if (pressed(buttons, SHELF_TRIANGLE, io.DeltaTime))
 		action = SHELF_QUIT;
 	if (!s->games.empty()) {
 		Game &game = s->games[s->game];
@@ -832,7 +895,7 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 			save_config();
 		}
 	}
-	s->previous = buttons;
+	s->keys.end_frame(held);
 	/* The right stick turns the selected object; another game starts from
 	 * its rest pose. */
 	if (s->posed_game != s->game) {
@@ -860,28 +923,39 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 	if (!s->games.empty())
 		draw_stage_3d();
 
-	ImGui::NewFrame();
-	ImGui::SetNextWindowPos(ImVec2(0, 0));
-	ImGui::SetNextWindowSize(io.DisplaySize);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-	ImGui::SetNextWindowBgAlpha(0.0f);
-	ImGui::Begin("##shelf", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-		ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs);
-	draw_frame(ImGui::GetWindowDrawList());
+	ImDrawList *draw = begin_overlay();
+	draw_frame(draw);
 	if (s->launch_time >= 0.0f) {
 		/* Into the game: fade to black over the end of the launch. */
 		const float l = std::min(1.0f, s->launch_time / kLaunch);
 		const float fade_in = std::max(0.0f, (l - 0.6f) / 0.4f);
-		ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(0, 0), io.DisplaySize, rgba(0, 0, 0, fade_in * fade_in));
+		draw->AddRectFilled(ImVec2(0, 0), io.DisplaySize, rgba(0, 0, 0, fade_in * fade_in));
 	}
 #ifdef ARCADE_SHELF_ADB
 	if (s->adb_open)
-		draw_adb_panel(ImGui::GetWindowDrawList());
+		draw_adb_panel(draw);
 #endif
-	ImGui::End();
-	ImGui::PopStyleVar(2);
-	ImGui::Render();
-	ui_gl_render(ImGui::GetDrawData(), s->width, s->height);
+	if (options_is_open())
+		options_draw(draw);
+	end_overlay();
 	return action;
+}
+
+void shelf_pause_open(const char *game, int slot, int save_states)
+{
+	pause_open(game, slot, save_states);
+}
+
+int shelf_pause_frame(const ShelfInput *input, int *slot)
+{
+	UiGlState state;
+	ImGui::SetCurrentContext(s->imgui);
+	ImGui::GetIO().DeltaTime = input->dt > 0.0f ? input->dt : 1.0f / 60.0f;
+	const int result = pause_input(input->buttons, ImGui::GetIO().DeltaTime, slot);
+	/* Over the application's frame: its GL state stays as it was. */
+	ui_gl_save_state(&state);
+	pause_draw(begin_overlay());
+	end_overlay();
+	ui_gl_restore_state(&state);
+	return result;
 }
