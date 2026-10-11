@@ -1,0 +1,14 @@
+arcade-shelf includes or builds these third-party components:
+
+- Dear ImGui 1.61 (deps/imgui), by Omar Cornut and contributors.
+  MIT License, see deps/imgui/LICENSE.txt.
+- Roboto Medium (deps/imgui/misc/fonts/Roboto-Medium.ttf), by Christian
+  Robertson. Apache License 2.0. Compiled into the library as the UI font.
+- rjson and rstrtod (deps/rjson), from libretro-common by the RetroArch team.
+  MIT-style licence, stated at the top of each file. Built only with ADB=1.
+
+With ADB=1 the library downloads data and images from Arcade Database
+(https://adb.arcadeitalia.net, by motoschifo; most images from
+ProgettoSnaps). That data is not part of arcade-shelf: it belongs to its
+owners and is used under the service's conditions, which require crediting
+the source. The library shows the credit on its download panel.

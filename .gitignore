@@ -1,0 +1,5 @@
+build/
+build-adb/
+build-vita/
+build-vita-adb/
+build/viewer-data/

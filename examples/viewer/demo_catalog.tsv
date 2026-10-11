@@ -1,0 +1,19 @@
+# arcade-shelf demo catalogue: game <key> <title> <system> <cabinet|disc>, then its versions.
+game	soulclbr	Soul Calibur	Namco System 12	cabinet
+version	soulclbr	World, SOC12/VER.A2	roms/soulclbr.zip	1998
+version	soulclbrac	Asia, SOC14/VER.C	roms/soulclbrac.zip	1998
+version	soulclbrjc	Japan, SOC11/VER.C	roms/soulclbrjc.zip	1998
+game	tekken3	Tekken 3	Namco System 12	cabinet
+version	tekken3	World, TET2/VER.E1	roms/tekken3.zip	1997
+version	tekken3ja	Japan, TET1/VER.A	roms/tekken3ja.zip	1997
+game	tekken2	Tekken 2	Namco System 11	cabinet
+version	tekken2	World, TES2/VER.D	roms/tekken2.zip	1995
+game	sfex	Street Fighter EX	Capcom ZN	cabinet
+version	sfex	Euro 961219	roms/sfex.zip	1996
+game	raystorm	Ray Storm	Taito FX-1	cabinet
+version	raystorm	Ver 2.06A	roms/raystorm.zip	1996
+game	SLUS-00594	Gran Turismo	Sony PlayStation	disc
+version	SLUS-00594	USA, v1.1	cd/Gran Turismo (USA).cue	1998
+version	SCES-00984	Europe	cd/Gran Turismo (Europe).cue	1998
+game	SCUS-94163	Final Fantasy VII	Sony PlayStation	disc
+version	SCUS-94163	USA, disc 1	cd/Final Fantasy VII (USA) (Disc 1).cue	1997
