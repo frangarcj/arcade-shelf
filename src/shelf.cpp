@@ -391,7 +391,7 @@ unsigned kick_for(const std::string &system)
 	return s->kick.back().second;
 }
 
-const float kLaunch = 0.9f; /* seconds of the launch animation */
+const float kLaunch = 1.1f; /* seconds of the launch animation */
 
 float ease_out(float t)
 {
@@ -410,8 +410,9 @@ float ease_in(float t)
  * Discs lean back, as in PCSX AwO's selector, to show their face.
  *
  * Launched, it is inserted, as in the Socket frontend: a disc rises,
- * stands upright facing the viewer, then goes straight down into a slot
- * in the floor; a cabinet comes toward the viewer. */
+ * spinning faster and faster, stands upright facing the viewer, then goes
+ * straight down into a slot in the floor; a cabinet comes toward the
+ * viewer. */
 void place(float model[16], int index, ShelfItemKind kind, float *yaw_out, float *pitch_out, float *spin_out)
 {
 	const float d = (float)index - s->scroll, distance = fabsf(d);
@@ -424,10 +425,11 @@ void place(float model[16], int index, ShelfItemKind kind, float *yaw_out, float
 	if (index == s->game && s->launch_time >= 0.0f) {
 		const float l = std::min(1.0f, s->launch_time / kLaunch);
 		if (disc) {
-			const float rise = ease_out(l / 0.35f), drop = ease_in((l - 0.35f) / 0.6f);
-			y += 0.45f * rise - (0.45f + DISC3D_CENTER_Y + DISC3D_RADIUS + 0.05f) * drop;
+			const float rise = ease_out(l / 0.55f), drop = ease_in((l - 0.55f) / 0.45f);
+			y += 0.42f * rise - (0.42f + DISC3D_CENTER_Y + DISC3D_RADIUS + 0.05f) * drop;
 			yaw += (0.0f - yaw) * rise;
 			pitch += (0.0f - pitch) * rise;
+			spin = -(300.0f * l + 1100.0f * l * l);
 		} else {
 			z += 2.6f * l * l;
 			y -= 0.35f * l * l;
@@ -840,7 +842,7 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 	if (s->launch_time >= 0.0f) {
 		/* Into the game: fade to black over the end of the launch. */
 		const float l = std::min(1.0f, s->launch_time / kLaunch);
-		const float fade_in = std::max(0.0f, (l - 0.45f) / 0.55f);
+		const float fade_in = std::max(0.0f, (l - 0.6f) / 0.4f);
 		ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(0, 0), io.DisplaySize, rgba(0, 0, 0, fade_in * fade_in));
 	}
 #ifdef ARCADE_SHELF_ADB
