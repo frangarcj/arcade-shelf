@@ -1,4 +1,6 @@
-# arcade-shelf demo catalogue: game <key> <title> <system> <cabinet|disc>, then its versions.
+# arcade-shelf demo catalogue: game <key> <title> <system> <cabinet|disc>, then its versions:
+# version <id> <label> <launch> <year> [<art>]. The disc art names are PCSX AwO's covers
+# (github.com/Rinnegatamante/PCSX_AwO, covers/): point --data at a folder with them in covers/.
 game	soulclbr	Soul Calibur	Namco System 12	cabinet
 version	soulclbr	World, SOC12/VER.A2	roms/soulclbr.zip	1998
 version	soulclbrac	Asia, SOC14/VER.C	roms/soulclbrac.zip	1998
@@ -13,7 +15,7 @@ version	sfex	Euro 961219	roms/sfex.zip	1996
 game	raystorm	Ray Storm	Taito FX-1	cabinet
 version	raystorm	Ver 2.06A	roms/raystorm.zip	1996
 game	SLUS-00594	Gran Turismo	Sony PlayStation	disc
-version	SLUS-00594	USA, v1.1	cd/Gran Turismo (USA).cue	1998
+version	SLUS-00594	USA, v1.1	cd/Gran Turismo (USA).cue	1998	Gran Turismo (USA) (Rev 1)
 version	SCES-00984	Europe	cd/Gran Turismo (Europe).cue	1998
 game	SCUS-94163	Final Fantasy VII	Sony PlayStation	disc
-version	SCUS-94163	USA, disc 1	cd/Final Fantasy VII (USA) (Disc 1).cue	1997
+version	SCUS-94163	USA, disc 1	cd/Final Fantasy VII (USA) (Disc 1).cue	1997	Final Fantasy VII (USA) (Disc 1)

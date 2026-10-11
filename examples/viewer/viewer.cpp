@@ -16,7 +16,7 @@
  *
  * Catalogue file, tab-separated; "#" starts a comment:
  *   game    <key> <title> <system> <cabinet|disc>
- *   version <id> <label> <launch> <year>     (versions of the last game)
+ *   version <id> <label> <launch> <year> [<art>]   (versions of the last game)
  */
 #include <stdarg.h>
 #include <stdio.h>
@@ -87,7 +87,8 @@ static bool load_catalogue(const char *path, Catalogue *c)
 	c->versions.resize(c->game_fields.size());
 	for (size_t i = 0; i < c->version_fields.size(); i++) {
 		const std::vector<std::string> &f = c->version_fields[i];
-		c->versions[owner[i]].push_back(ShelfVersion{ f[1].c_str(), f[2].c_str(), f[3].c_str(), atoi(f[4].c_str()) });
+		c->versions[owner[i]].push_back(ShelfVersion{ f[1].c_str(), f[2].c_str(), f[3].c_str(), atoi(f[4].c_str()),
+			f.size() > 5 ? f[5].c_str() : NULL });
 	}
 	for (size_t i = 0; i < c->game_fields.size(); i++) {
 		const std::vector<std::string> &f = c->game_fields[i];

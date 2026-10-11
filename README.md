@@ -61,14 +61,15 @@ The last game and the version chosen for each game are kept in
 
 ## Art
 
-The art is optional and the user supplies it, named by version id (MAME
-set names for arcade games). A version without art uses its game's key:
+The art is optional and the user supplies it, named by the version's `art`
+name, or its id when that is not set (MAME set names for arcade games). A
+version without art uses its game's key:
 
 | File | Used for |
 | --- | --- |
 | `snap/<id>.png` (or `titles/<id>.png`) | cabinet screen, stretched to 4:3 |
 | `marquees/<id>.png` | cabinet marquee |
-| `covers/<id>.png` | disc label, cropped round |
+| `covers/<id>.png` | disc label, cropped round; PCSX AwO's covers fit as they are |
 
 Without art, the marquee and the label show the title on the system's
 colours, and the screen shows the id. The library ships no game art.
@@ -117,6 +118,16 @@ check the UI without a display:
 ```sh
 build/viewer --headless --script "R,R,D,SR,-" --step-frames 20 --shots /tmp/steps
 ```
+
+## Credits
+
+- Rinnegatamante: the 3D disc carousel of his PCSX AwO selector inspired
+  arcade-shelf; its ImGui renderer is adapted here with his permission; and
+  arcade-shelf runs on his vitaGL. PCSX AwO's PS1 covers fit the disc label
+  as they are.
+- Dear ImGui by Omar Cornut; Roboto by Christian Robertson; rjson from
+  libretro-common.
+- With `ADB=1`: Arcade Database by motoschifo, and ProgettoSnaps by AntoPisa.
 
 ## Licence
 

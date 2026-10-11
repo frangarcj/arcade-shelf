@@ -26,6 +26,7 @@ namespace {
 struct Version {
 	std::string id, label, launch;
 	int year;
+	std::string art; /* art file name */
 };
 
 struct Game {
@@ -158,7 +159,7 @@ void free_art()
 
 Art *art_for(const Game &game)
 {
-	const std::string &id = game.versions[game.selected].id;
+	const std::string &id = game.versions[game.selected].art;
 	for (Art &art : s->art)
 		if (art.id == id) {
 			art.last_used = s->frame;
@@ -668,8 +669,9 @@ void shelf_set_games(const ShelfGame *games, int count)
 		game.selected = 0;
 		for (int v = 0; v < in.version_count; v++) {
 			const ShelfVersion &version = in.versions[v];
-			game.versions.push_back(Version{ version.id ? version.id : "", version.label ? version.label : "",
-				version.launch ? version.launch : "", version.year });
+			const char *id = version.id ? version.id : "";
+			game.versions.push_back(Version{ id, version.label ? version.label : "",
+				version.launch ? version.launch : "", version.year, version.art && *version.art ? version.art : id });
 		}
 		s->games.push_back(game);
 	}

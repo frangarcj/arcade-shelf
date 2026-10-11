@@ -37,10 +37,11 @@ typedef enum {
 
 /* One version of a game: what is launched. */
 typedef struct {
-	const char *id;     /* art and settings name, e.g. MAME set "soulclbrac" */
+	const char *id;     /* settings name, e.g. MAME set "soulclbrac" */
 	const char *label;  /* "Asia, SOC14/VER.C" (empty: id is shown) */
 	const char *launch; /* returned on launch, e.g. a zip or image path */
 	int year;
+	const char *art;    /* art file name without ".png"; NULL: id */
 } ShelfVersion;
 
 /* A game: one object on the carousel. */
@@ -83,10 +84,13 @@ void shelf_set_games(const ShelfGame *games, int count);
  * holds the chosen version's launch string. */
 int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size);
 
-/* Art, in data_root (MAME names for arcade; any id for consoles):
- *   snap/<id>.png or titles/<id>.png   screen of a cabinet
- *   marquees/<id>.png                  cabinet marquee
- *   covers/<id>.png                    disc label
+/* Art, in data_root, by the version's art name (its id unless art is set;
+ * MAME set names for arcade):
+ *   snap/<art>.png or titles/<art>.png   screen of a cabinet
+ *   marquees/<art>.png                   cabinet marquee
+ *   covers/<art>.png                     disc label (a square scan of the
+ *                                        label, cropped round; PCSX AwO's
+ *                                        covers fit as they are)
  * Each falls back to the game's key. Missing art is drawn from the title. */
 
 #ifdef __cplusplus
