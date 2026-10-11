@@ -118,10 +118,11 @@ void disc3d_draw(const float model[16], const DiscLook *look)
 	material.sin_pitch = sinf(look->pitch * (float)M_PI / 180.0f);
 	material.disc_spin = look->spin;
 	/* The body, then the label over it, blended with the cover's alpha. */
-	material.flags = UI3D_DISC;
+	const int slot = look->into_slot ? UI3D_FLOOR_SLOT : 0;
+	material.flags = UI3D_DISC | slot;
 	material.disc_part = 0.0f;
 	ui_gl3d_draw(s_body.data(), (int)s_body.size(), white, model, look->light, &material);
-	material.flags = UI3D_DISC | UI3D_BLEND;
+	material.flags = UI3D_DISC | UI3D_BLEND | slot;
 	material.disc_part = look->label ? 1.0f : 2.0f;
 	ui_gl3d_draw(s_label.data(), (int)s_label.size(), look->label ? look->label : white, model, look->light, &material);
 }

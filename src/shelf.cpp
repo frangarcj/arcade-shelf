@@ -399,12 +399,19 @@ float ease_out(float t)
 	return 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
 }
 
+float ease_in(float t)
+{
+	t = std::max(0.0f, std::min(1.0f, t));
+	return t * t * t;
+}
+
 /* The selected object turns a little to show its side, sways gently and
  * follows the right stick; neighbours step back and turn toward the middle.
  * Discs lean back, as in PCSX AwO's selector, to show their face.
  *
- * Launched, it is inserted, as in the Socket frontend: a disc rises, turns
- * flat and slides back into a slot; a cabinet comes toward the viewer. */
+ * Launched, it is inserted, as in the Socket frontend: a disc rises,
+ * stands upright facing the viewer, then goes straight down into a slot
+ * in the floor; a cabinet comes toward the viewer. */
 void place(float model[16], int index, ShelfItemKind kind, float *yaw_out, float *pitch_out, float *spin_out)
 {
 	const float d = (float)index - s->scroll, distance = fabsf(d);
@@ -417,12 +424,10 @@ void place(float model[16], int index, ShelfItemKind kind, float *yaw_out, float
 	if (index == s->game && s->launch_time >= 0.0f) {
 		const float l = std::min(1.0f, s->launch_time / kLaunch);
 		if (disc) {
-			const float rise = ease_out(l / 0.4f), insert = ease_out((l - 0.35f) / 0.65f);
-			y += 0.55f * rise;
+			const float rise = ease_out(l / 0.35f), drop = ease_in((l - 0.35f) / 0.6f);
+			y += 0.45f * rise - (0.45f + DISC3D_CENTER_Y + DISC3D_RADIUS + 0.05f) * drop;
 			yaw += (0.0f - yaw) * rise;
-			pitch += (-90.0f - pitch) * insert;
-			z -= 2.4f * insert * insert;
-			spin = -200.0f * l;
+			pitch += (0.0f - pitch) * rise;
 		} else {
 			z += 2.6f * l * l;
 			y -= 0.35f * l * l;
@@ -459,7 +464,7 @@ void draw_stage_3d()
 		Art *art = art_for(game);
 		const ShelfSystemStyle &style = style_for(game.system);
 		if (game.kind == SHELF_DISC) {
-			DiscLook look = { art->label3d.id, yaw, pitch, spin, light };
+			DiscLook look = { art->label3d.id, yaw, pitch, spin, i == s->game && s->launch_time >= 0.0f, light };
 			disc3d_draw(model, &look);
 			continue;
 		}

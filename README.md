@@ -57,8 +57,8 @@ Controls:
 | Circle | Exit |
 
 Play first plays an insert animation, after the Socket frontend: a disc
-rises, turns flat and slides back into a slot, and a cabinet comes toward
-the viewer. The screen then fades to black, and `shelf_frame` returns
+rises, stands upright and goes straight down into a slot in the floor, and
+a cabinet comes toward the viewer. The screen then fades to black, and `shelf_frame` returns
 `SHELF_LAUNCH`.
 
 The last game and the version chosen for each game are kept in

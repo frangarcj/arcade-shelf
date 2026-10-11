@@ -8,6 +8,7 @@ typedef struct {
 	unsigned label;   /* label texture (square; the disc crops it round) */
 	float yaw, pitch; /* the disc's turn, degrees: it moves the sheen */
 	float spin;       /* its turn in its own plane, degrees */
+	int into_slot;    /* clipped at the floor, as going into a slot */
 	float light;      /* 1 selected, less for neighbours */
 } DiscLook;
 

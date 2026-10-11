@@ -185,6 +185,7 @@ static bool init_3d(void)
 		"    color = disc.rgb;\n"
 		"    base.a = disc.a;\n"
 		"  }\n"
+		"  if (u_disc.x > 1.5 && v_world.y < 0.0) discard;\n" /* into the floor slot */
 		"  gl_FragColor = vec4(color * u_params.x, base.a);\n"
 		"}\n";
 	static const char *const attributes[] = { "in_pos", "in_normal", "in_uv", "in_color" };
@@ -432,8 +433,8 @@ void ui_gl3d_draw(const UiVertex3D *vertices, int count, unsigned texture, const
 	glUniformMatrix4fv(s_model_loc, 1, GL_FALSE, model);
 	glUniform4f(s_params_loc, light, (flags & UI3D_EMISSIVE) ? 1.0f : 0.0f, material->specular,
 		material->shininess > 1.0f ? material->shininess : 1.0f);
-	glUniform4f(s_disc_loc, (flags & UI3D_DISC) ? 1.0f : 0.0f, material->disc_part, material->sin_yaw,
-		material->sin_pitch);
+	glUniform4f(s_disc_loc, ((flags & UI3D_DISC) ? 1.0f : 0.0f) + ((flags & UI3D_FLOOR_SLOT) ? 1.0f : 0.0f),
+		material->disc_part, material->sin_yaw, material->sin_pitch);
 	glUniform2f(s_disc_spin_loc, cosf(material->disc_spin * (float)M_PI / 180.0f),
 		sinf(material->disc_spin * (float)M_PI / 180.0f));
 	glUniform4f(s_disc_center_loc, material->disc_center[0], material->disc_center[1], material->disc_center[2],

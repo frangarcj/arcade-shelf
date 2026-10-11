@@ -41,7 +41,8 @@ enum {
 	UI3D_BLEND = 2,    /* alpha blended, no depth writes (shadows) */
 	/* An optical disc, shaded as PCSX AwO's selector does (see disc3d.cpp):
 	 * UiMaterial.disc gives the part and the turn, not the key light. */
-	UI3D_DISC = 4
+	UI3D_DISC = 4,
+	UI3D_FLOOR_SLOT = 8 /* not drawn below the floor (y = 0): it goes into a slot */
 };
 /* How a surface takes the light. */
 typedef struct {
