@@ -10,9 +10,11 @@ void mat4_perspective(float m[16], float fov_y_degrees, float aspect, float z_ne
 void mat4_look_at(float m[16], const float eye[3], const float target[3], const float up[3]);
 /* Translation, then rotation about Y (degrees), as one model matrix. */
 void mat4_place(float m[16], float x, float y, float z, float yaw_degrees);
-/* The same with a tilt about X (degrees) around the height pivot_y. */
+/* The same with a tilt about X (degrees) around the height pivot_y, and a
+ * spin about the object's own Z axis (degrees) through (0, pivot_y, 0),
+ * which turns a disc in its plane. */
 void mat4_place_tilted(float m[16], float x, float y, float z, float yaw_degrees,
-	float pitch_degrees, float pivot_y);
+	float pitch_degrees, float pivot_y, float spin_degrees = 0.0f, float scale = 1.0f);
 /* Projects a world point with a view-projection matrix into a viewport;
  * false if it is behind the camera. */
 bool mat4_project(const float view_projection[16], const float point[3],

@@ -61,6 +61,9 @@ struct State {
 	float time;       /* seconds, for the idle animation */
 	float yaw, pitch; /* right stick turn of the selected object */
 	int posed_game;   /* the game yaw/pitch belong to */
+	float select_time;  /* seconds since the selected game changed */
+	float launch_time;  /* seconds into the launch animation; < 0 none */
+	std::string launch; /* what is launched when that animation ends */
 	bool adb_open;    /* the artwork download panel is shown */
 	ImFont *font_small, *font_body, *font_title;
 };
@@ -389,21 +392,53 @@ unsigned kick_for(const std::string &system)
 	return s->kick.back().second;
 }
 
+const float kSelectSpin = 0.6f; /* seconds of the selection spin */
+const float kLaunch = 0.9f;     /* seconds of the launch animation */
+
 /* The selected object turns a little to show its side, sways gently and
  * follows the right stick; neighbours step back and turn toward the middle.
- * Discs lean back, as in PCSX AwO's selector, to show their face. */
-void place(float model[16], float d, ShelfItemKind kind, float *yaw_out = NULL, float *pitch_out = NULL)
+ * Discs lean back, as in PCSX AwO's selector, to show their face.
+ *
+ * Newly selected, it spins once and bounces (a disc turns in its plane, a
+ * cabinet turns round with a hop). Launched, it is "inserted", as in the
+ * Socket frontend: a disc spins up, shrinks and drops; a cabinet comes
+ * toward the viewer. */
+void place(float model[16], int index, ShelfItemKind kind, float *yaw_out, float *pitch_out, float *spin_out)
 {
-	const float distance = fabsf(d);
+	const float d = (float)index - s->scroll, distance = fabsf(d);
 	const float focus = std::max(0.0f, 1.0f - distance * 2.0f);
 	const float sway = 4.0f * sinf(s->time * 2.0f * (float)M_PI / 6.0f) * focus;
 	const bool disc = kind == SHELF_DISC;
-	const float yaw = (disc ? -7.0f - d * 18.0f : -10.0f - d * 30.0f) + sway + s->yaw * focus;
+	float yaw = (disc ? -7.0f - d * 18.0f : -10.0f - d * 30.0f) + sway + s->yaw * focus;
 	const float pitch = (disc ? -25.0f : 0.0f) + s->pitch * focus;
-	mat4_place_tilted(model, d * 1.32f, 0.0f, -std::min(distance, 2.5f) * 1.35f, yaw, pitch,
-		disc ? DISC3D_CENTER_Y : 0.95f);
+	float x = d * 1.32f, y = 0.0f, z = -std::min(distance, 2.5f) * 1.35f, spin = 0.0f, scale = 1.0f;
+	if (index == s->game) {
+		const float t = std::min(1.0f, s->select_time / kSelectSpin);
+		const float ease = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
+		const float bounce = sinf((float)M_PI * t) * (1.0f - t);
+		if (disc) {
+			spin = -360.0f * (1.0f - ease);
+			scale = 1.0f + 0.10f * bounce;
+		} else {
+			yaw += 360.0f * (1.0f - ease);
+			y += 0.18f * sinf((float)M_PI * t);
+		}
+		if (s->launch_time >= 0.0f) {
+			const float l = std::min(1.0f, s->launch_time / kLaunch);
+			if (disc) {
+				spin -= 900.0f * l * l;
+				scale *= 1.0f - 0.55f * l * l;
+				y -= 0.9f * l * l;
+			} else {
+				z += 2.6f * l * l;
+				y -= 0.35f * l * l;
+			}
+		}
+	}
+	mat4_place_tilted(model, x, y, z, yaw, pitch, disc ? DISC3D_CENTER_Y : 0.95f, spin, scale);
 	if (yaw_out) *yaw_out = yaw;
 	if (pitch_out) *pitch_out = pitch;
+	if (spin_out) *spin_out = spin;
 }
 
 void draw_stage_3d()
@@ -422,8 +457,8 @@ void draw_stage_3d()
 		const Game &game = s->games[i];
 		const float d = (float)i - s->scroll;
 		const float light = std::max(0.28f, 1.0f - 0.36f * fabsf(d));
-		float yaw = 0.0f, pitch = 0.0f;
-		place(model, d, game.kind, &yaw, &pitch);
+		float yaw = 0.0f, pitch = 0.0f, spin = 0.0f;
+		place(model, i, game.kind, &yaw, &pitch, &spin);
 		if (pass == 0) {
 			cabinet3d_shadow(model, std::max(0.3f, 1.0f - 0.3f * fabsf(d)));
 			continue;
@@ -431,7 +466,7 @@ void draw_stage_3d()
 		Art *art = art_for(game);
 		const ShelfSystemStyle &style = style_for(game.system);
 		if (game.kind == SHELF_DISC) {
-			DiscLook look = { art->label3d.id, yaw, pitch, light };
+			DiscLook look = { art->label3d.id, yaw, pitch, spin, light };
 			disc3d_draw(model, &look);
 			continue;
 		}
@@ -634,6 +669,7 @@ int shelf_init(const ShelfConfig *config)
 {
 	ImFontConfig font_config;
 	s = new State();
+	s->launch_time = -1.0f;
 	s->title = config->title ? config->title : "arcade-shelf";
 	s->title_accent = config->title_accent ? config->title_accent : "";
 	s->data_root = config->data_root ? config->data_root : ".";
@@ -686,6 +722,7 @@ void shelf_set_games(const ShelfGame *games, int count)
 	load_config();
 	s->scroll = (float)s->game;
 	s->posed_game = -1;
+	s->launch_time = -1.0f;
 }
 
 void shelf_shutdown(void)
@@ -736,6 +773,16 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 		buttons = 0;
 	}
 #endif
+	/* The launch animation plays to its end, then the game is returned. */
+	if (s->launch_time >= 0.0f) {
+		s->launch_time += io.DeltaTime;
+		if (s->launch_time >= kLaunch) {
+			snprintf(launch, launch_size, "%s", s->launch.c_str());
+			s->launch_time = -1.0f;
+			action = SHELF_LAUNCH;
+		}
+		buttons = 0;
+	}
 	if (pressed(buttons, SHELF_CIRCLE, io.DeltaTime))
 		action = SHELF_QUIT;
 	if (!s->games.empty()) {
@@ -750,9 +797,9 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 			game.selected++;
 		if (pressed(buttons, SHELF_CROSS, io.DeltaTime) || pressed(buttons, SHELF_START, io.DeltaTime)) {
 			const Game &chosen = s->games[s->game];
-			snprintf(launch, launch_size, "%s", chosen.versions[chosen.selected].launch.c_str());
+			s->launch = chosen.versions[chosen.selected].launch;
+			s->launch_time = 0.0f;
 			save_config();
-			action = SHELF_LAUNCH;
 		}
 	}
 	s->previous = buttons;
@@ -761,7 +808,9 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 	if (s->posed_game != s->game) {
 		s->posed_game = s->game;
 		s->yaw = s->pitch = 0.0f;
+		s->select_time = 0.0f;
 	}
+	s->select_time += io.DeltaTime;
 	if (fabsf(input->stick_x) > 0.2f)
 		s->yaw = fmodf(s->yaw + input->stick_x * 150.0f * io.DeltaTime, 360.0f);
 	if (fabsf(input->stick_y) > 0.2f)
@@ -792,6 +841,12 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 	ImGui::Begin("##shelf", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
 		ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs);
 	draw_frame(ImGui::GetWindowDrawList());
+	if (s->launch_time >= 0.0f) {
+		/* Into the game: fade to black over the end of the launch. */
+		const float l = std::min(1.0f, s->launch_time / kLaunch);
+		const float fade_in = std::max(0.0f, (l - 0.45f) / 0.55f);
+		ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(0, 0), io.DisplaySize, rgba(0, 0, 0, fade_in * fade_in));
+	}
 #ifdef ARCADE_SHELF_ADB
 	if (s->adb_open)
 		draw_adb_panel(ImGui::GetWindowDrawList());

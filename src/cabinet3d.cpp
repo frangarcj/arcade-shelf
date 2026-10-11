@@ -70,21 +70,28 @@ void mat4_look_at(float m[16], const float eye[3], const float target[3], const 
 }
 
 void mat4_place_tilted(float m[16], float x, float y, float z, float yaw_degrees,
-	float pitch_degrees, float pivot_y)
+	float pitch_degrees, float pivot_y, float spin_degrees, float scale)
 {
-	/* The tilt is about the world X axis (toward the viewer), after the turn:
-	 * T(x, y + pivot, z) Rx(pitch) T(0, -pivot, 0) Ry(yaw). */
+	/* The tilt is about the world X axis (toward the viewer), after the turn;
+	 * the spin and the scale act about the pivot, in the object's frame:
+	 * T(x, y + pivot, z) Rx(pitch) Ry(yaw) Rz(spin) S(scale) T(0, -pivot, 0). */
 	const float a = pitch_degrees * (float)M_PI / 180.0f, c = cosf(a), s = sinf(a);
-	float place[16], tilt[16], down[16], turn[16];
+	const float b = spin_degrees * (float)M_PI / 180.0f, cb = cosf(b), sb = sinf(b);
+	float place[16], tilt[16], down[16], turn[16], spin[16];
 	mat4_place(place, x, y + pivot_y, z, 0.0f);
 	mat4_identity(tilt);
 	tilt[5] = c; tilt[6] = s;
 	tilt[9] = -s; tilt[10] = c;
 	mat4_place(down, 0.0f, -pivot_y, 0.0f, 0.0f);
 	mat4_place(turn, 0.0f, 0.0f, 0.0f, yaw_degrees);
+	mat4_identity(spin);
+	spin[0] = cb * scale; spin[1] = sb * scale;
+	spin[4] = -sb * scale; spin[5] = cb * scale;
+	spin[10] = scale;
 	mat4_multiply(m, place, tilt);
-	mat4_multiply(m, m, down);
 	mat4_multiply(m, m, turn);
+	mat4_multiply(m, m, spin);
+	mat4_multiply(m, m, down);
 }
 
 void mat4_place(float m[16], float x, float y, float z, float yaw_degrees)

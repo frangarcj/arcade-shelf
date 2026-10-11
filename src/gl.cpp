@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -37,7 +38,7 @@ static GLuint s_program, s_vbo, s_ibo, s_font_texture, s_white_texture;
 static GLint s_screen_loc = -1;
 static GLuint s_program3d;
 static GLint s_vp_loc = -1, s_model_loc = -1, s_params_loc = -1, s_tint_loc = -1, s_eye_loc = -1;
-static GLint s_disc_loc = -1, s_disc_center_loc = -1;
+static GLint s_disc_loc = -1, s_disc_center_loc = -1, s_disc_spin_loc = -1;
 
 static GLuint compile_shader(GLenum type, const char *source)
 {
@@ -127,6 +128,7 @@ static bool init_3d(void)
 		"uniform vec4 u_params;\n" /* light, emissive, specular, shininess */
 		"uniform vec3 u_eye;\n"
 		"uniform vec4 u_disc;\n" /* on, part, sin yaw, sin pitch */
+		"uniform vec2 u_disc_spin;\n" /* cos, sin of the disc's turn in its plane */
 		"varying vec2 v_uv;\n"
 		"varying vec4 v_color;\n"
 		"varying vec3 v_normal;\n"
@@ -148,7 +150,11 @@ static bool init_3d(void)
 		 * (Rinnegatamante, used with permission), on the disc's own (x, y). */
 		"  if (u_disc.x > 0.5) {\n"
 		"    vec4 disc = base;\n"
-		"    vec2 p = vec2(v_disc.x, -v_disc.y);\n" /* the selector's y points down */
+		/* The sheen follows the light, not the label: undo the spin. The
+		 * selector's y points down. */
+		"    vec2 q = vec2(u_disc_spin.x * v_disc.x - u_disc_spin.y * v_disc.y,\n"
+		"                  u_disc_spin.y * v_disc.x + u_disc_spin.x * v_disc.y);\n"
+		"    vec2 p = vec2(q.x, -q.y);\n"
 		"    float radius = length(p);\n"
 		"    float gloss = u_disc.y;\n"
 		"    vec2 light_dir = normalize(vec2(0.42 + u_disc.z * 0.38, -0.78 + u_disc.w * 0.22));\n"
@@ -192,6 +198,7 @@ static bool init_3d(void)
 	s_eye_loc = glGetUniformLocation(s_program3d, "u_eye");
 	s_disc_loc = glGetUniformLocation(s_program3d, "u_disc");
 	s_disc_center_loc = glGetUniformLocation(s_program3d, "u_disc_center");
+	s_disc_spin_loc = glGetUniformLocation(s_program3d, "u_disc_spin");
 	glUseProgram(s_program3d);
 	glUniform1i(glGetUniformLocation(s_program3d, "u_texture"), 0);
 	glUseProgram(0);
@@ -427,6 +434,8 @@ void ui_gl3d_draw(const UiVertex3D *vertices, int count, unsigned texture, const
 		material->shininess > 1.0f ? material->shininess : 1.0f);
 	glUniform4f(s_disc_loc, (flags & UI3D_DISC) ? 1.0f : 0.0f, material->disc_part, material->sin_yaw,
 		material->sin_pitch);
+	glUniform2f(s_disc_spin_loc, cosf(material->disc_spin * (float)M_PI / 180.0f),
+		sinf(material->disc_spin * (float)M_PI / 180.0f));
 	glUniform4f(s_disc_center_loc, material->disc_center[0], material->disc_center[1], material->disc_center[2],
 		material->disc_radius > 0.0f ? material->disc_radius : 1.0f);
 	glUniform4f(s_tint_loc, (tint & 0xff) / 255.0f, ((tint >> 8) & 0xff) / 255.0f,

@@ -116,6 +116,7 @@ void disc3d_draw(const float model[16], const DiscLook *look)
 	material.disc_radius = DISC3D_RADIUS;
 	material.sin_yaw = sinf(look->yaw * (float)M_PI / 180.0f);
 	material.sin_pitch = sinf(look->pitch * (float)M_PI / 180.0f);
+	material.disc_spin = look->spin;
 	/* The body, then the label over it, blended with the cover's alpha. */
 	material.flags = UI3D_DISC;
 	material.disc_part = 0.0f;

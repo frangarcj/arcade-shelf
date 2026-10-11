@@ -53,6 +53,7 @@ typedef struct {
 	 * (vertex alpha marks the data face 0, inner layer 0.25, edges 1),
 	 * 1 printed label, 2 silver face without a label; sin of the turn. */
 	float disc_center[3], disc_radius, disc_part, sin_yaw, sin_pitch;
+	float disc_spin; /* UI3D_DISC: the disc's turn in its plane, degrees */
 } UiMaterial;
 /* Draws triangles with a model matrix, lit per pixel by a key light and a
  * cool rim light; light scales the result (dimmed neighbours). */
