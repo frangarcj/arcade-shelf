@@ -773,6 +773,11 @@ int shelf_init(const ShelfConfig *config)
 	s->font_body = io.Fonts->AddFontFromMemoryTTF(Roboto_Medium_ttf, sizeof(Roboto_Medium_ttf), 18.0f, &font_config);
 	s->font_title = io.Fonts->AddFontFromMemoryTTF(Roboto_Medium_ttf, sizeof(Roboto_Medium_ttf), 30.0f, &font_config);
 	menu_init(config->menus, (float)config->width, (float)config->height);
+	if (config->framebuffer_width > 0 && config->framebuffer_height > 0)
+		ui_gl_set_scale((float)config->framebuffer_width / config->width,
+			(float)config->framebuffer_height / config->height);
+	else
+		ui_gl_set_scale(1.0f, 1.0f);
 	return ui_gl_init() && cabinet3d_init() && disc3d_init();
 }
 

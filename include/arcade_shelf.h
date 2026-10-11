@@ -99,10 +99,13 @@ typedef struct {
 	const char *title, *title_accent; /* header: "PCSX" "ReArcade" */
 	const char *data_root;   /* art dirs, shelf.cfg */
 	const char *empty_hint;  /* shown when the catalogue is empty */
-	int width, height;       /* framebuffer size in pixels */
+	int width, height;       /* layout size: framebuffer pixels, unless set below */
 	const ShelfSystemStyle *styles; /* the first one is the default */
 	int style_count;
 	const ShelfMenus *menus; /* not copied: kept until shelf_shutdown; NULL: none */
+	/* Framebuffer size in pixels when it is not width x height (a Retina
+	 * window): the layout is scaled to it. 0: width x height. */
+	int framebuffer_width, framebuffer_height;
 } ShelfConfig;
 
 /* shelf_frame: Cross launches (after its animation), Triangle quits,

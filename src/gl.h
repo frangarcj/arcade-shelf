@@ -1,5 +1,6 @@
-/* ImGui drawing, PNG textures and lit 3D triangles for arcade-shelf, on vitaGL or on the
- * OpenGL 2.1 context of the macOS build: only GLES2-style calls, no VAOs. */
+/* ImGui drawing, PNG textures and lit 3D triangles for arcade-shelf, on vitaGL or on
+ * macOS OpenGL (a 2.1 context, or a 3.2+ core one with its own vertex array): only
+ * GLES2-style calls. */
 #ifndef ARCADE_SHELF_GL_H
 #define ARCADE_SHELF_GL_H
 
@@ -13,6 +14,8 @@ typedef struct {
 
 /* Builds the shader and the font atlas texture; ImGui must exist. */
 bool ui_gl_init(void);
+/* Framebuffer pixels per layout unit; drawing takes layout coordinates. */
+void ui_gl_set_scale(float x, float y);
 void ui_gl_shutdown(void);
 /* Draws a frame of ImGui into the bound framebuffer (width x height). */
 void ui_gl_render(ImDrawData *draw_data, int width, int height);

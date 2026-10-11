@@ -141,7 +141,10 @@ ships. An application that uses arcade-shelf must not link another ImGui,
 unless it builds the library with `make vita IMGUI=system`: then both use
 VitaSDK's `libimgui`, and the library keeps its own ImGui context. It
 links libpng, zlib and its GL: vitaGL on the Vita, `-framework OpenGL` on
-macOS.
+macOS, where it runs on an OpenGL 2.1 context or on a 3.2+ core one (as
+emulator renderers make; the viewer's `--gl-core`). For a Retina window, set
+`framebuffer_width` / `framebuffer_height`: the 960 x 544 layout is scaled to
+them.
 
 ## Viewer
 

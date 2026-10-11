@@ -2,13 +2,14 @@
  * catalogue from a text file, to work on the UI and to check it with
  * scripted screenshots.
  *
- *   build/viewer [--catalog FILE] [--data DIR] [--pause]
+ *   build/viewer [--catalog FILE] [--data DIR] [--pause] [--gl-core]
  *       [--script STEPS] [--step-frames N] [--shot FILE.png] [--shots DIR] [--headless]
  *
  * Keys: arrows; Z or Enter = cross (play); X = circle; S or Esc = triangle
  * (exit); A = square (options); Q/W = L/R; Tab = select; Space = start;
  * J L I K = right stick (turns the cabinet). A game controller works too.
  * --pause shows the pause menu over a stand-in game frame instead.
+ * --gl-core makes an OpenGL 3.2 core context, as emulator renderers do.
  * The options and save states are a demo kept in memory.
  * --script runs a comma-separated button list (U D L R X O T S LB RB ST SE,
  * or "-" for no button), one press every --step-frames frames, then exits;
@@ -241,7 +242,7 @@ int main(int argc, char **argv)
 	const char *catalog = "examples/viewer/demo_catalog.tsv", *data = "build/viewer-data", *shot = NULL, *shots = NULL;
 	std::vector<unsigned> script;
 	std::vector<std::pair<float, float> > script_sticks;
-	int step_frames = 15, headless = 0, result = 0, pause = 0, slot = 0;
+	int step_frames = 15, headless = 0, result = 0, pause = 0, slot = 0, gl_core = 0;
 	for (int i = 1; i < argc; i++) {
 		const std::string arg = argv[i];
 		const bool has_value = i + 1 < argc;
@@ -249,6 +250,7 @@ int main(int argc, char **argv)
 		else if (arg == "--data" && has_value) data = argv[++i];
 		else if (arg == "--headless") headless = 1;
 		else if (arg == "--pause") pause = 1;
+		else if (arg == "--gl-core") gl_core = 1;
 		else if (arg == "--shot" && has_value) shot = argv[++i];
 		else if (arg == "--shots" && has_value) shots = argv[++i];
 		else if (arg == "--step-frames" && has_value) step_frames = atoi(argv[++i]);
@@ -277,8 +279,10 @@ int main(int argc, char **argv)
 		fprintf(stderr, "viewer: SDL_Init: %s\n", SDL_GetError());
 		return 1;
 	}
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, gl_core ? 3 : 2);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, gl_core ? 2 : 1);
+	if (gl_core)
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 	SDL_Window *window = SDL_CreateWindow("arcade-shelf", WIDTH, HEIGHT,
 		SDL_WINDOW_OPENGL | (headless ? SDL_WINDOW_HIDDEN : 0));
@@ -291,16 +295,16 @@ int main(int argc, char **argv)
 
 	GLuint framebuffer = 0, color = 0, depth = 0;
 	if (headless) {
-		glGenFramebuffersEXT(1, &framebuffer);
-		glGenRenderbuffersEXT(1, &color);
-		glGenRenderbuffersEXT(1, &depth);
-		glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, color);
-		glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_RGBA8, WIDTH, HEIGHT);
-		glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, depth);
-		glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24, WIDTH, HEIGHT);
-		glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, framebuffer);
-		glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_RENDERBUFFER_EXT, color);
-		glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, depth);
+		glGenFramebuffers(1, &framebuffer);
+		glGenRenderbuffers(1, &color);
+		glGenRenderbuffers(1, &depth);
+		glBindRenderbuffer(GL_RENDERBUFFER, color);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, WIDTH, HEIGHT);
+		glBindRenderbuffer(GL_RENDERBUFFER, depth);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, WIDTH, HEIGHT);
+		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
 	}
 
 	SDL_CreateDirectory(data);
@@ -404,9 +408,9 @@ int main(int argc, char **argv)
 	}
 	shelf_shutdown();
 	if (framebuffer) {
-		glDeleteFramebuffersEXT(1, &framebuffer);
-		glDeleteRenderbuffersEXT(1, &color);
-		glDeleteRenderbuffersEXT(1, &depth);
+		glDeleteFramebuffers(1, &framebuffer);
+		glDeleteRenderbuffers(1, &color);
+		glDeleteRenderbuffers(1, &depth);
 	}
 	SDL_GL_DestroyContext(context);
 	SDL_DestroyWindow(window);

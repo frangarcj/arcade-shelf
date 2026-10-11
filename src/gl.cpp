@@ -22,18 +22,19 @@
 #define FB_COLOR0 GL_COLOR_ATTACHMENT0
 #define FB_BINDING GL_FRAMEBUFFER_BINDING
 #else
+/* macOS: an OpenGL 2.1 context, or a 3.2+ core one (as an emulator's
+ * renderer makes); framebuffer objects are core functions in both. */
 #define GL_SILENCE_DEPRECATION
-#define GL_GLEXT_PROTOTYPES
-#include <OpenGL/gl.h>
-#include <OpenGL/glext.h>
-/* The macOS OpenGL 2.1 context has framebuffer objects as EXT functions. */
-#define FB_GEN glGenFramebuffersEXT
-#define FB_DELETE glDeleteFramebuffersEXT
-#define FB_BIND glBindFramebufferEXT
-#define FB_TEXTURE glFramebufferTexture2DEXT
-#define FB_TARGET GL_FRAMEBUFFER_EXT
-#define FB_COLOR0 GL_COLOR_ATTACHMENT0_EXT
-#define FB_BINDING GL_FRAMEBUFFER_BINDING_EXT
+#include <OpenGL/gl3.h>
+#define GL_ALPHA_TEST 0x0BC0 /* legacy contexts only */
+#define FB_GEN glGenFramebuffers
+#define FB_DELETE glDeleteFramebuffers
+#define FB_BIND glBindFramebuffer
+#define FB_TEXTURE glFramebufferTexture2D
+#define FB_TARGET GL_FRAMEBUFFER
+#define FB_COLOR0 GL_COLOR_ATTACHMENT0
+#define FB_BINDING GL_FRAMEBUFFER_BINDING
+#define GL_CORE_CAPABLE 1
 #endif
 
 static GLuint s_program, s_vbo, s_ibo, s_font_texture, s_white_texture;
@@ -42,11 +43,53 @@ static GLuint s_program3d;
 static GLint s_vp_loc = -1, s_model_loc = -1, s_params_loc = -1, s_tint_loc = -1, s_eye_loc = -1;
 static GLint s_disc_loc = -1, s_disc_center_loc = -1, s_disc_spin_loc = -1;
 
+static float s_scale_x = 1.0f, s_scale_y = 1.0f;
+
+void ui_gl_set_scale(float x, float y)
+{
+	s_scale_x = x;
+	s_scale_y = y;
+}
+
+/* A core profile context: GLSL 1.40 and a vertex array object. */
+static bool s_core;
+#ifdef GL_CORE_CAPABLE
+static GLuint s_vao;
+static GLint s_saved_vao;
+#endif
+
+/* Binds the library's vertex array (core profile), keeping the caller's. */
+static void bind_vertex_array(void)
+{
+#ifdef GL_CORE_CAPABLE
+	if (!s_core)
+		return;
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &s_saved_vao);
+	glBindVertexArray(s_vao);
+#endif
+}
+
+static void unbind_vertex_array(void)
+{
+#ifdef GL_CORE_CAPABLE
+	if (s_core)
+		glBindVertexArray((GLuint)s_saved_vao);
+#endif
+}
+
 static GLuint compile_shader(GLenum type, const char *source)
 {
+	/* The shaders are GLSL 1.10 / ES 1.00; a core context takes 1.40. */
+	static const char *core_vertex = "#version 140\n#define attribute in\n#define varying out\n";
+	static const char *core_fragment = "#version 140\n#define varying in\n#define texture2D texture\n"
+		"out vec4 frag_color;\n#define gl_FragColor frag_color\n";
+	const char *sources[2] = { type == GL_VERTEX_SHADER ? core_vertex : core_fragment, source };
 	GLuint shader = glCreateShader(type);
 	GLint ok = GL_FALSE;
-	glShaderSource(shader, 1, &source, NULL);
+	if (s_core)
+		glShaderSource(shader, 2, sources, NULL);
+	else
+		glShaderSource(shader, 1, &source, NULL);
 	glCompileShader(shader);
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
 	if (!ok) {
@@ -230,11 +273,20 @@ bool ui_gl_init(void)
 		"void main() {\n"
 		"  gl_FragColor = texture2D(u_texture, v_uv) * v_color;\n"
 		"}\n";
-	GLuint vertex = compile_shader(GL_VERTEX_SHADER, vs);
-	GLuint fragment = compile_shader(GL_FRAGMENT_SHADER, fs);
 	GLint linked = GL_FALSE;
 	unsigned char *pixels;
 	int width, height;
+#ifdef GL_CORE_CAPABLE
+	{
+		/* On macOS, version 3 or later is only made as a core profile. */
+		const char *version = (const char *)glGetString(GL_VERSION);
+		s_core = version && atoi(version) >= 3;
+		if (s_core)
+			glGenVertexArrays(1, &s_vao);
+	}
+#endif
+	GLuint vertex = compile_shader(GL_VERTEX_SHADER, vs);
+	GLuint fragment = compile_shader(GL_FRAGMENT_SHADER, fs);
 
 	if (!vertex || !fragment)
 		return false;
@@ -279,13 +331,19 @@ void ui_gl_shutdown(void)
 	if (s_ibo) glDeleteBuffers(1, &s_ibo);
 	if (s_program) glDeleteProgram(s_program);
 	s_font_texture = s_vbo = s_ibo = s_program = 0;
+#ifdef GL_CORE_CAPABLE
+	if (s_vao) glDeleteVertexArrays(1, &s_vao);
+	s_vao = 0;
+#endif
 }
 
 static void render(ImDrawData *draw_data, int width, int height, bool into_texture)
 {
 	if (!draw_data || !s_program)
 		return;
-	glViewport(0, 0, width, height);
+	/* Into the framebuffer: layout units to pixels. */
+	const float sx = into_texture ? 1.0f : s_scale_x, sy = into_texture ? 1.0f : s_scale_y;
+	glViewport(0, 0, (int)(width * sx + 0.5f), (int)(height * sy + 0.5f));
 	glUseProgram(s_program);
 	glUniform4f(s_screen_loc, (float)width, (float)height, into_texture ? -1.0f : 1.0f, 0.0f);
 	glActiveTexture(GL_TEXTURE0);
@@ -295,6 +353,7 @@ static void render(ImDrawData *draw_data, int width, int height, bool into_textu
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_STENCIL_TEST);
 	glEnable(GL_SCISSOR_TEST);
+	bind_vertex_array();
 	glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, s_ibo);
 	glEnableVertexAttribArray(0);
@@ -318,7 +377,8 @@ static void render(ImDrawData *draw_data, int width, int height, bool into_textu
 				const int w = (int)(cmd.ClipRect.z - cmd.ClipRect.x);
 				const int h = (int)(cmd.ClipRect.w - cmd.ClipRect.y);
 				if (w > 0 && h > 0) {
-					glScissor((int)cmd.ClipRect.x, into_texture ? (int)cmd.ClipRect.y : height - (int)cmd.ClipRect.w, w, h);
+					glScissor((int)(cmd.ClipRect.x * sx), (int)((into_texture ? cmd.ClipRect.y : height - cmd.ClipRect.w) * sy),
+						(int)(w * sx + 0.5f), (int)(h * sy + 0.5f));
 					glBindTexture(GL_TEXTURE_2D, (GLuint)(uintptr_t)cmd.TextureId);
 					glDrawElements(GL_TRIANGLES, (GLsizei)cmd.ElemCount,
 						sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT,
@@ -332,7 +392,9 @@ static void render(ImDrawData *draw_data, int width, int height, bool into_textu
 	glDisableVertexAttribArray(1);
 	glDisableVertexAttribArray(2);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	if (!s_core) /* the element buffer belongs to the vertex array */
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	unbind_vertex_array();
 	glDisable(GL_SCISSOR_TEST);
 	glUseProgram(0);
 }
@@ -404,9 +466,11 @@ unsigned ui_gl_white_texture(void)
 void ui_gl3d_begin(int x, int y, int width, int height, int framebuffer_height,
 	const float view_projection[16], const float eye[3])
 {
-	glViewport(x, framebuffer_height - y - height, width, height);
+	const int px = (int)(x * s_scale_x), py = (int)((framebuffer_height - y - height) * s_scale_y);
+	const int pw = (int)(width * s_scale_x + 0.5f), ph = (int)(height * s_scale_y + 0.5f);
+	glViewport(px, py, pw, ph);
 	glEnable(GL_SCISSOR_TEST);
-	glScissor(x, framebuffer_height - y - height, width, height);
+	glScissor(px, py, pw, ph);
 	glDepthMask(GL_TRUE);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
@@ -417,6 +481,7 @@ void ui_gl3d_begin(int x, int y, int width, int height, int framebuffer_height,
 	glUniformMatrix4fv(s_vp_loc, 1, GL_FALSE, view_projection);
 	glUniform3f(s_eye_loc, eye[0], eye[1], eye[2]);
 	glActiveTexture(GL_TEXTURE0);
+	bind_vertex_array();
 	glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
 	for (int i = 0; i < 4; i++)
 		glEnableVertexAttribArray(i);
@@ -461,6 +526,7 @@ void ui_gl3d_end(void)
 	for (int i = 0; i < 4; i++)
 		glDisableVertexAttribArray(i);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	unbind_vertex_array();
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_SCISSOR_TEST);
 	glUseProgram(0);
@@ -518,13 +584,14 @@ void ui_gl_save_state(UiGlState *state)
 	state->cull = glIsEnabled(GL_CULL_FACE);
 	state->stencil = glIsEnabled(GL_STENCIL_TEST);
 	state->scissor = glIsEnabled(GL_SCISSOR_TEST);
-	state->alpha_test = glIsEnabled(GL_ALPHA_TEST);
+	state->alpha_test = !s_core && glIsEnabled(GL_ALPHA_TEST);
 	glGetBooleanv(GL_DEPTH_WRITEMASK, &depth_mask);
 	glGetBooleanv(GL_COLOR_WRITEMASK, color_mask);
 	state->depth_mask = depth_mask;
 	memcpy(state->color_mask, color_mask, 4);
 	/* The overlay's own state. */
-	glDisable(GL_ALPHA_TEST);
+	if (!s_core)
+		glDisable(GL_ALPHA_TEST);
 	glDepthMask(GL_FALSE);
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
@@ -559,7 +626,8 @@ void ui_gl_restore_state(const UiGlState *state)
 	set_enabled(GL_CULL_FACE, state->cull);
 	set_enabled(GL_STENCIL_TEST, state->stencil);
 	set_enabled(GL_SCISSOR_TEST, state->scissor);
-	set_enabled(GL_ALPHA_TEST, state->alpha_test);
+	if (!s_core)
+		set_enabled(GL_ALPHA_TEST, state->alpha_test);
 }
 
 bool ui_gl_load_png(const char *path, UiTexture *texture)
