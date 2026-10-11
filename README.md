@@ -58,7 +58,8 @@ Controls:
 
 Play first plays an insert animation, after the Socket frontend: a disc
 rises spinning faster and faster, stands upright and goes straight down
-into a slot in the floor, and a cabinet comes toward the viewer. The screen then fades to black, and `shelf_frame` returns
+into a slot in the floor; for a cabinet, the camera flies into its screen,
+as if entering the game. The screen then fades to black, and `shelf_frame` returns
 `SHELF_LAUNCH`.
 
 The last game and the version chosen for each game are kept in

@@ -372,13 +372,38 @@ float stage_height()
 	return (float)s->height - kStageY - 44.0f;
 }
 
-void stage_camera(float view_projection[16])
+void place(float model[16], int index, ShelfItemKind kind, float *yaw_out, float *pitch_out, float *spin_out);
+const float kLaunch = 1.1f; /* seconds of the launch animation */
+
+/* The camera stands still, except when a cabinet is launched: then it
+ * flies into the cabinet's screen, as if entering the game. */
+void stage_camera(float view_projection[16], float eye_out[3] = NULL)
 {
 	float projection[16], view[16];
-	const float target[3] = { 0.0f, 0.97f, 0.0f }, up[3] = { 0.0f, 1.0f, 0.0f };
-	mat4_perspective(projection, 32.0f, kStageW / stage_height(), 0.1f, 40.0f);
-	mat4_look_at(view, kEye, target, up);
+	float eye[3] = { kEye[0], kEye[1], kEye[2] }, target[3] = { 0.0f, 0.97f, 0.0f };
+	const float up[3] = { 0.0f, 1.0f, 0.0f };
+	if (s->launch_time >= 0.0f && !s->games.empty() && s->games[s->game].kind == SHELF_CABINET) {
+		float model[16], center[3], normal[3], c[3], n[3];
+		const float l = std::min(1.0f, s->launch_time / kLaunch);
+		/* Slow at first, fastest as it goes through the glass. */
+		const float t = l * l * l * (l * (6.0f * l - 15.0f) + 10.0f) * 0.35f + l * l * 0.65f;
+		place(model, s->game, SHELF_CABINET, NULL, NULL, NULL);
+		cabinet3d_screen(center, normal);
+		for (int i = 0; i < 3; i++) {
+			c[i] = model[12 + i] + model[i] * center[0] + model[4 + i] * center[1] + model[8 + i] * center[2];
+			n[i] = model[i] * normal[0] + model[4 + i] * normal[1] + model[8 + i] * normal[2];
+		}
+		for (int i = 0; i < 3; i++) {
+			eye[i] += (c[i] + n[i] * 0.06f - eye[i]) * t;
+			target[i] += (c[i] - n[i] * 0.5f - target[i]) * t;
+		}
+	}
+	mat4_perspective(projection, 32.0f, kStageW / stage_height(), 0.03f, 40.0f);
+	mat4_look_at(view, eye, target, up);
 	mat4_multiply(view_projection, projection, view);
+	if (eye_out)
+		for (int i = 0; i < 3; i++)
+			eye_out[i] = eye[i];
 }
 
 unsigned kick_for(const std::string &system)
@@ -390,8 +415,6 @@ unsigned kick_for(const std::string &system)
 	s->kick.push_back(std::make_pair(system, cabinet3d_kick_texture(style.kick_top, style.kick_bottom)));
 	return s->kick.back().second;
 }
-
-const float kLaunch = 1.1f; /* seconds of the launch animation */
 
 float ease_out(float t)
 {
@@ -411,8 +434,8 @@ float ease_in(float t)
  *
  * Launched, it is inserted, as in the Socket frontend: a disc rises,
  * spinning faster and faster, stands upright facing the viewer, then goes
- * straight down into a slot in the floor; a cabinet comes toward the
- * viewer. */
+ * straight down into a slot in the floor; a cabinet turns to face the
+ * viewer while the camera flies into its screen (stage_camera). */
 void place(float model[16], int index, ShelfItemKind kind, float *yaw_out, float *pitch_out, float *spin_out)
 {
 	const float d = (float)index - s->scroll, distance = fabsf(d);
@@ -431,8 +454,9 @@ void place(float model[16], int index, ShelfItemKind kind, float *yaw_out, float
 			pitch += (0.0f - pitch) * rise;
 			spin = -(300.0f * l + 1100.0f * l * l);
 		} else {
-			z += 2.6f * l * l;
-			y -= 0.35f * l * l;
+			const float face = ease_out(l / 0.35f);
+			yaw += (0.0f - yaw) * face;
+			pitch += (0.0f - pitch) * face;
 		}
 	}
 	mat4_place_tilted(model, x, y, z, yaw, pitch, disc ? DISC3D_CENTER_Y : 0.95f, spin, scale);
@@ -450,8 +474,9 @@ void draw_stage_3d()
 			visible.push_back(i);
 	for (int i : visible)
 		ensure_surfaces(s->games[i], art_for(s->games[i]));
-	stage_camera(view_projection);
-	ui_gl3d_begin((int)kStageX, (int)kStageY, (int)kStageW, (int)stage_height(), s->height, view_projection, kEye);
+	float eye[3];
+	stage_camera(view_projection, eye);
+	ui_gl3d_begin((int)kStageX, (int)kStageY, (int)kStageW, (int)stage_height(), s->height, view_projection, eye);
 	/* Shadows first, then the objects. */
 	for (int pass = 0; pass < 2; pass++) for (int i : visible) {
 		const Game &game = s->games[i];

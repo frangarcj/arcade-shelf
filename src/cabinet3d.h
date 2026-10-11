@@ -37,6 +37,8 @@ bool cabinet3d_init(void);
 void cabinet3d_shutdown(void);
 /* Draws a cabinet; call between ui_gl3d_begin and ui_gl3d_end. */
 void cabinet3d_draw(const float model[16], const CabinetLook *look);
+/* The centre of the screen and its outward normal, in model space. */
+void cabinet3d_screen(float center[3], float normal[3]);
 /* A soft shadow on the floor under the cabinet; draw before the cabinets. */
 void cabinet3d_shadow(const float model[16], float strength);
 

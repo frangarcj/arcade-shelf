@@ -511,6 +511,19 @@ void cabinet3d_draw(const float model[16], const CabinetLook *look)
 	ui_gl3d_draw(s_glossy.data(), (int)s_glossy.size(), white, model, look->light, &plastic);
 }
 
+void cabinet3d_screen(float center[3], float normal[3])
+{
+	/* Segment F -> G of the profile is the screen. */
+	const ProfilePoint &f = kProfile[5], &g = kProfile[6];
+	center[0] = 0.0f;
+	center[1] = (f.y + g.y) * 0.5f;
+	center[2] = (f.z + g.z) * 0.5f;
+	normal[0] = 0.0f;
+	normal[1] = -(g.z - f.z);
+	normal[2] = g.y - f.y;
+	normalize3(normal);
+}
+
 void cabinet3d_shadow(const float model[16], float strength)
 {
 	UiMaterial shadow = { IM_COL32(255, 255, 255, 255), 0.0f, 1.0f, UI3D_EMISSIVE | UI3D_BLEND };
