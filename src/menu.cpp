@@ -17,6 +17,7 @@ using namespace theme;
 namespace {
 
 const ShelfMenus *menus;
+const char *about_text;
 float W, H;
 
 /* ---- options ---- */
@@ -173,11 +174,47 @@ void row(ImDrawList *draw, float x0, float x1, float y, float h, bool selected)
 	draw->AddRectFilled(ImVec2(x0, y), ImVec2(x0 + 3, y + h), rgba(255, 180, 0), 2.0f);
 }
 
+/* ---- credits ---- */
+
+struct About {
+	bool open;
+	float scroll, target; /* pixels */
+	Keys keys;
+} about;
+
+/* Lays the text out from y; returns the height. draw NULL: measure only. */
+float about_layout(ImDrawList *draw, float x, float y, float width)
+{
+	const float top = y;
+	const char *line = about_text;
+	while (line && *line) {
+		const char *end = strchr(line, '\n');
+		const std::string text(line, end ? end : line + strlen(line));
+		line = end ? end + 1 : NULL;
+		if (text.empty()) {
+			y += 10.0f;
+		} else if (text.compare(0, 2, "# ") == 0) {
+			y += 6.0f;
+			if (draw)
+				draw->AddText(font_small(), 13.0f, ImVec2(x, y), rgba(255, 180, 0), text.c_str() + 2);
+			y += 22.0f;
+		} else {
+			const ImVec2 size = font_small()->CalcTextSizeA(15.0f, FLT_MAX, width, text.c_str());
+			if (draw)
+				draw->AddText(font_small(), 15.0f, ImVec2(x, y), rgba(200, 204, 225), text.c_str(), NULL, width);
+			y += size.y + 4.0f;
+		}
+	}
+	return y - top;
+}
+
 } // namespace
 
-void menu_init(const ShelfMenus *m, float width, float height)
+void menu_init(const ShelfMenus *m, const char *credits, float width, float height)
 {
 	menus = m;
+	about_text = credits && *credits ? credits : NULL;
+	about = About();
 	W = width;
 	H = height;
 	options = Options();
@@ -276,6 +313,60 @@ void options_draw(ImDrawList *draw)
 	float x = x0;
 	x = text_hint(draw, x, fy, "^ v", "Option");
 	x = text_hint(draw, x, fy, "< >", "Change");
+	hint(draw, x, fy, SHELF_CIRCLE, "Back");
+}
+
+bool menu_has_about()
+{
+	return about_text != NULL;
+}
+
+void about_open()
+{
+	about.open = about_text != NULL;
+	about.scroll = about.target = 0.0f;
+	about.keys = Keys();
+	about.keys.previous = ~0u;
+}
+
+bool about_is_open()
+{
+	return about.open;
+}
+
+void about_input(unsigned buttons, float dt)
+{
+	Keys &k = about.keys;
+	if (k.pressed(buttons, SHELF_UP, dt))
+		about.target -= 60.0f;
+	if (k.pressed(buttons, SHELF_DOWN, dt))
+		about.target += 60.0f;
+	if (k.pressed(buttons, SHELF_CIRCLE, dt) || k.pressed(buttons, SHELF_SELECT, dt) ||
+		k.pressed(buttons, SHELF_TRIANGLE, dt) || k.pressed(buttons, SHELF_CROSS, dt))
+		about.open = false;
+	k.end_frame(buttons);
+}
+
+void about_draw(ImDrawList *draw)
+{
+	const ImVec2 p0(48, 26), p1(W - 48, H - 26);
+	const float x0 = p0.x + 28, x1 = p1.x - 28;
+	const float top = p0.y + 70, bottom = p1.y - 52;
+	const float height = about_layout(NULL, x0, 0.0f, x1 - x0);
+	const float most = std::max(0.0f, height - (bottom - top));
+	about.target = std::max(0.0f, std::min(about.target, most));
+	about.scroll += (about.target - about.scroll) * 0.3f;
+
+	draw->AddRectFilled(ImVec2(0, 0), ImVec2(W, H), rgba(5, 7, 16, 0.72f));
+	panel(draw, p0, p1);
+	draw->AddText(font_title(), 26.0f, ImVec2(x0, p0.y + 20), rgba(245, 245, 250), "About");
+	draw->PushClipRect(ImVec2(p0.x, top), ImVec2(p1.x, bottom), true);
+	about_layout(draw, x0, top - about.scroll, x1 - x0);
+	draw->PopClipRect();
+	const float fy = p1.y - 24;
+	float x = x0;
+	if (most > 0.0f)
+		x = text_hint(draw, x, fy, "^ v", "Scroll");
 	hint(draw, x, fy, SHELF_CIRCLE, "Back");
 }
 

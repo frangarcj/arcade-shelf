@@ -55,6 +55,7 @@ Controls:
 | Right stick | Turn and tilt the selected object |
 | Cross or Start | Play |
 | Square | Options (when the application gives some) |
+| Select | About: the application's credits (`ShelfConfig.about`) |
 | Triangle | Exit |
 
 Play first plays an insert animation, after the Socket frontend: a disc
@@ -111,7 +112,7 @@ colours, and the screen shows the id. The library ships no game art.
 
 ## Artwork download (optional)
 
-With `ADB=1`, Select opens a panel that downloads the missing snaps,
+With `ADB=1`, L opens a panel that downloads the missing snaps,
 titles and marquees of the arcade games from
 [Arcade Database](https://adb.arcadeitalia.net) by motoschifo, together
 with each set's control data. It follows the service's published rules:

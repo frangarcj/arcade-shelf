@@ -103,13 +103,16 @@ typedef struct {
 	const ShelfSystemStyle *styles; /* the first one is the default */
 	int style_count;
 	const ShelfMenus *menus; /* not copied: kept until shelf_shutdown; NULL: none */
+	/* Credits, shown on Select: lines of text; "# " starts a heading and an
+	 * empty line a gap. Not copied. NULL: none. */
+	const char *about;
 	/* Framebuffer size in pixels when it is not width x height (a Retina
 	 * window): the layout is scaled to it. 0: width x height. */
 	int framebuffer_width, framebuffer_height;
 } ShelfConfig;
 
 /* shelf_frame: Cross launches (after its animation), Triangle quits,
- * Square opens the options. */
+ * Square opens the options, Select the credits. */
 enum { SHELF_NONE, SHELF_LAUNCH, SHELF_QUIT };
 
 /* Call with the GL context current. The configuration is copied. Returns

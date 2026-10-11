@@ -567,6 +567,8 @@ void draw_frame(ImDrawList *draw)
 		float x = 32;
 		if (menu_has_options())
 			x = hint(draw, x, H - 24, SHELF_SQUARE, "Options");
+		if (menu_has_about())
+			x = text_hint(draw, x, H - 24, "SELECT", "About");
 		hint(draw, x, H - 24, SHELF_TRIANGLE, "Exit");
 		return;
 	}
@@ -634,8 +636,10 @@ void draw_frame(ImDrawList *draw)
 		x = text_hint(draw, x, fy, "^ v", "Version");
 	if (menu_has_options())
 		x = hint(draw, x, fy, SHELF_SQUARE, "Options");
+	if (menu_has_about())
+		x = text_hint(draw, x, fy, "SELECT", "About");
 #ifdef ARCADE_SHELF_ADB
-	x = text_hint(draw, x, fy, "SELECT", "Artwork");
+	x = text_hint(draw, x, fy, "L", "Artwork");
 #endif
 	hint(draw, W - 110, fy, SHELF_TRIANGLE, "Exit");
 }
@@ -772,7 +776,7 @@ int shelf_init(const ShelfConfig *config)
 	s->font_small = io.Fonts->AddFontFromMemoryTTF(Roboto_Medium_ttf, sizeof(Roboto_Medium_ttf), 15.0f, &font_config);
 	s->font_body = io.Fonts->AddFontFromMemoryTTF(Roboto_Medium_ttf, sizeof(Roboto_Medium_ttf), 18.0f, &font_config);
 	s->font_title = io.Fonts->AddFontFromMemoryTTF(Roboto_Medium_ttf, sizeof(Roboto_Medium_ttf), 30.0f, &font_config);
-	menu_init(config->menus, (float)config->width, (float)config->height);
+	menu_init(config->menus, config->about, (float)config->width, (float)config->height);
 	if (config->framebuffer_width > 0 && config->framebuffer_height > 0)
 		ui_gl_set_scale((float)config->framebuffer_width / config->width,
 			(float)config->framebuffer_height / config->height);
@@ -859,7 +863,7 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 	if (s->adb_open) {
 		adb_input(buttons, io.DeltaTime);
 		buttons = 0;
-	} else if (pressed(buttons, SHELF_SELECT, io.DeltaTime) && !s->games.empty()) {
+	} else if (pressed(buttons, SHELF_L, io.DeltaTime) && !s->games.empty()) {
 		s->adb_open = true;
 		buttons = 0;
 	}
@@ -877,8 +881,14 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 	if (options_is_open()) {
 		options_input(buttons, io.DeltaTime);
 		buttons = 0;
+	} else if (about_is_open()) {
+		about_input(buttons, io.DeltaTime);
+		buttons = 0;
 	} else if (pressed(buttons, SHELF_SQUARE, io.DeltaTime) && menu_has_options()) {
 		options_open();
+		buttons = 0;
+	} else if (pressed(buttons, SHELF_SELECT, io.DeltaTime) && menu_has_about()) {
+		about_open();
 		buttons = 0;
 	}
 	if (pressed(buttons, SHELF_TRIANGLE, io.DeltaTime))
@@ -942,6 +952,8 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 #endif
 	if (options_is_open())
 		options_draw(draw);
+	if (about_is_open())
+		about_draw(draw);
 	end_overlay();
 	return action;
 }

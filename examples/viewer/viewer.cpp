@@ -6,7 +6,7 @@
  *       [--script STEPS] [--step-frames N] [--shot FILE.png] [--shots DIR] [--headless]
  *
  * Keys: arrows; Z or Enter = cross (play); X = circle; S or Esc = triangle
- * (exit); A = square (options); Q/W = L/R; Tab = select; Space = start;
+ * (exit); A = square (options); Q/W = L/R; Tab = select (about); Space = start;
  * J L I K = right stick (turns the cabinet). A game controller works too.
  * --pause shows the pause menu over a stand-in game frame instead.
  * --gl-core makes an OpenGL 3.2 core context, as emulator renderers do.
@@ -91,6 +91,14 @@ static int demo_state_exists(void *, int slot)
 
 static const ShelfMenus kMenus = { kOptions, (int)(sizeof(kOptions) / sizeof(kOptions[0])), NULL, demo_get, demo_set,
 	10, demo_state_exists };
+
+static const char kAbout[] =
+	"# arcade-shelf viewer\n"
+	"A 3D game selector for emulators, with a demo catalogue.\n"
+	"\n"
+	"# Credits\n"
+	"The disc's mesh and shading come from PCSX AwO's selector, by Rinnegatamante.\n"
+	"Dear ImGui by Omar Cornut. Roboto by Christian Robertson.\n";
 
 /* A stand-in for a game's frame under the pause menu. */
 static void draw_game_frame(void)
@@ -314,7 +322,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	ShelfConfig config = { "arcade", "shelf", data, "Add games to the catalogue file.", WIDTH, HEIGHT,
-		kStyles, (int)(sizeof(kStyles) / sizeof(kStyles[0])), &kMenus };
+		kStyles, (int)(sizeof(kStyles) / sizeof(kStyles[0])), &kMenus, kAbout };
 	if (!shelf_init(&config)) {
 		fprintf(stderr, "viewer: init failed\n");
 		return 1;
