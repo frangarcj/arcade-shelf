@@ -512,8 +512,13 @@ void draw_stage_3d()
 	for (int i = 0; i < (int)s->games.size(); i++)
 		if (fabsf((float)i - s->scroll) < 2.8f)
 			visible.push_back(i);
-	for (int i : visible)
+	/* Textures are rendered before the pass: rendering one inside it
+	 * would leave it without its framebuffer, program and vertex buffer. */
+	for (int i : visible) {
 		ensure_surfaces(s->games[i], art_for(s->games[i]));
+		if (s->games[i].kind != SHELF_DISC)
+			kick_for(s->games[i].system);
+	}
 	float eye[3];
 	stage_camera(view_projection, eye);
 	ui_gl3d_begin((int)kStageX, (int)kStageY, (int)kStageW, (int)stage_height(), s->height, view_projection, eye);

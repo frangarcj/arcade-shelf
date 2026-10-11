@@ -34,7 +34,8 @@ void ui_gl_free_texture(UiTexture *texture);
 /* Draws ImGui draw lists that are not part of an ImGui frame. */
 void ui_gl_render_lists(ImDrawList **lists, int count, int width, int height);
 /* Makes a width x height texture and draws into it: draw() fills an
- * ImDrawList whose coordinates are the texture's pixels. */
+ * ImDrawList whose coordinates are the texture's pixels. Not between
+ * ui_gl3d_begin and ui_gl3d_end: it changes the pass's GL state. */
 bool ui_gl_render_to_texture(UiTexture *texture, int width, int height,
 	void (*draw)(ImDrawList *list, void *opaque), void *opaque);
 
