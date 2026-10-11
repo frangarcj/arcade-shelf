@@ -390,14 +390,20 @@ unsigned kick_for(const std::string &system)
 }
 
 /* The selected object turns a little to show its side, sways gently and
- * follows the right stick; neighbours step back and turn toward the middle. */
-void place(float model[16], float d)
+ * follows the right stick; neighbours step back and turn toward the middle.
+ * Discs lean back, as in PCSX AwO's selector, to show their face. */
+void place(float model[16], float d, ShelfItemKind kind, float *yaw_out = NULL, float *pitch_out = NULL)
 {
 	const float distance = fabsf(d);
 	const float focus = std::max(0.0f, 1.0f - distance * 2.0f);
 	const float sway = 4.0f * sinf(s->time * 2.0f * (float)M_PI / 6.0f) * focus;
-	mat4_place_tilted(model, d * 1.32f, 0.0f, -std::min(distance, 2.5f) * 1.35f,
-		-10.0f - d * 30.0f + sway + s->yaw * focus, s->pitch * focus, 0.95f);
+	const bool disc = kind == SHELF_DISC;
+	const float yaw = (disc ? -7.0f - d * 18.0f : -10.0f - d * 30.0f) + sway + s->yaw * focus;
+	const float pitch = (disc ? -25.0f : 0.0f) + s->pitch * focus;
+	mat4_place_tilted(model, d * 1.32f, 0.0f, -std::min(distance, 2.5f) * 1.35f, yaw, pitch,
+		disc ? DISC3D_CENTER_Y : 0.95f);
+	if (yaw_out) *yaw_out = yaw;
+	if (pitch_out) *pitch_out = pitch;
 }
 
 void draw_stage_3d()
@@ -416,7 +422,8 @@ void draw_stage_3d()
 		const Game &game = s->games[i];
 		const float d = (float)i - s->scroll;
 		const float light = std::max(0.28f, 1.0f - 0.36f * fabsf(d));
-		place(model, d);
+		float yaw = 0.0f, pitch = 0.0f;
+		place(model, d, game.kind, &yaw, &pitch);
 		if (pass == 0) {
 			cabinet3d_shadow(model, std::max(0.3f, 1.0f - 0.3f * fabsf(d)));
 			continue;
@@ -424,7 +431,7 @@ void draw_stage_3d()
 		Art *art = art_for(game);
 		const ShelfSystemStyle &style = style_for(game.system);
 		if (game.kind == SHELF_DISC) {
-			DiscLook look = { art->label3d.id, style.trim, light };
+			DiscLook look = { art->label3d.id, yaw, pitch, light };
 			disc3d_draw(model, &look);
 			continue;
 		}

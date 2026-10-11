@@ -1,9 +1,11 @@
 arcade-shelf includes or builds these third-party components:
 
-- The ImGui renderer in src/gl.cpp (its shaders and draw loop) is adapted
-  from the ROM selector of PCSX AwO by Rinnegatamante
+- From the ROM selector of PCSX AwO by Rinnegatamante
   (github.com/Rinnegatamante/PCSX_AwO, frontend/vita/rom_selector.cpp),
-  used under the MIT licence with his permission.
+  used under the MIT licence with his permission:
+  - the ImGui renderer in src/gl.cpp (its shaders and draw loop);
+  - the disc: its mesh (src/disc3d.cpp) and its shading (the UI3D_DISC
+    branch of the 3D shader in src/gl.cpp).
 
 - Dear ImGui 1.61 (deps/imgui), by Omar Cornut and contributors.
   MIT License, see deps/imgui/LICENSE.txt.

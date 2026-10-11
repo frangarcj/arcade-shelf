@@ -1,12 +1,13 @@
-/* A standing optical disc for console games: the cover printed on the
- * label face, a silver data face and a coloured rim. */
+/* An optical disc for console games, after PCSX AwO's selector: the
+ * cover printed on the label face, a black PS1 data face, a sheen that
+ * moves as the disc turns. */
 #ifndef ARCADE_SHELF_DISC3D_H
 #define ARCADE_SHELF_DISC3D_H
 
 typedef struct {
-	unsigned label; /* label texture (square; the disc crops it round) */
-	unsigned rim;   /* IM_COL32 of the outer edge */
-	float light;    /* 1 selected, less for neighbours */
+	unsigned label;   /* label texture (square; the disc crops it round) */
+	float yaw, pitch; /* the disc's turn, degrees: it moves the sheen */
+	float light;      /* 1 selected, less for neighbours */
 } DiscLook;
 
 bool disc3d_init(void);

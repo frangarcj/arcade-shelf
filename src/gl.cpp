@@ -37,6 +37,7 @@ static GLuint s_program, s_vbo, s_ibo, s_font_texture, s_white_texture;
 static GLint s_screen_loc = -1;
 static GLuint s_program3d;
 static GLint s_vp_loc = -1, s_model_loc = -1, s_params_loc = -1, s_tint_loc = -1, s_eye_loc = -1;
+static GLint s_disc_loc = -1, s_disc_center_loc = -1;
 
 static GLuint compile_shader(GLenum type, const char *source)
 {
@@ -106,15 +107,18 @@ static bool init_3d(void)
 		"uniform mat4 u_vp;\n"
 		"uniform mat4 u_model;\n"
 		"uniform vec4 u_tint;\n"
+		"uniform vec4 u_disc_center;\n" /* disc centre (model space), radius */
 		"varying vec2 v_uv;\n"
 		"varying vec4 v_color;\n"
 		"varying vec3 v_normal;\n"
 		"varying vec3 v_world;\n"
+		"varying vec2 v_disc;\n"
 		"void main() {\n"
 		"  vec4 world = u_model * vec4(in_pos, 1.0);\n"
 		"  gl_Position = u_vp * world;\n"
 		"  v_world = world.xyz;\n"
 		"  v_normal = (u_model * vec4(in_normal, 0.0)).xyz;\n"
+		"  v_disc = (in_pos.xy - u_disc_center.xy) / u_disc_center.w;\n"
 		"  v_color = in_color * u_tint;\n"
 		"  v_uv = in_uv;\n"
 		"}\n";
@@ -122,10 +126,12 @@ static bool init_3d(void)
 		"uniform sampler2D u_texture;\n"
 		"uniform vec4 u_params;\n" /* light, emissive, specular, shininess */
 		"uniform vec3 u_eye;\n"
+		"uniform vec4 u_disc;\n" /* on, part, sin yaw, sin pitch */
 		"varying vec2 v_uv;\n"
 		"varying vec4 v_color;\n"
 		"varying vec3 v_normal;\n"
 		"varying vec3 v_world;\n"
+		"varying vec2 v_disc;\n"
 		"void main() {\n"
 		"  vec4 base = texture2D(u_texture, v_uv) * v_color;\n"
 		"  vec3 n = normalize(v_normal);\n"
@@ -137,6 +143,42 @@ static bool init_3d(void)
 		"  float highlight = pow(max(dot(n, normalize(key + view)), 0.0), u_params.w) * u_params.z;\n"
 		"  float edge = pow(1.0 - max(dot(n, view), 0.0), 3.0) * max(dot(n, rim), 0.0);\n"
 		"  vec3 color = shaded + vec3(highlight) + vec3(0.35, 0.45, 0.75) * edge * (1.0 - u_params.y);\n"
+
+		/* Disc: the sheen, data face and silver face of PCSX AwO's selector
+		 * (Rinnegatamante, used with permission), on the disc's own (x, y). */
+		"  if (u_disc.x > 0.5) {\n"
+		"    vec4 disc = base;\n"
+		"    vec2 p = vec2(v_disc.x, -v_disc.y);\n" /* the selector's y points down */
+		"    float radius = length(p);\n"
+		"    float gloss = u_disc.y;\n"
+		"    vec2 light_dir = normalize(vec2(0.42 + u_disc.z * 0.38, -0.78 + u_disc.w * 0.22));\n"
+		"    vec2 across = vec2(-light_dir.y, light_dir.x);\n"
+		"    float stripe = max(0.0, 1.0 - abs(dot(p, across) - 0.10) * 3.25);\n"
+		"    float rim = smoothstep(0.72, 1.0, radius);\n"
+		"    float sheen = (stripe * stripe * 0.30 + rim * 0.10) * min(gloss, 1.0);\n"
+		"    disc.rgb += vec3(sheen * 0.82, sheen * 0.93, sheen);\n"
+		"    if (gloss > 1.5) {\n"
+		"      float sweep = max(0.0, 1.0 - abs(dot(p, light_dir) + 0.18) * 4.8);\n"
+		"      float grooves = 0.5 + 0.5 * sin(radius * 118.0);\n"
+		"      vec3 spectrum = 0.5 + 0.5 * vec3(sin(radius * 47.0), sin(radius * 47.0 + 2.10), sin(radius * 47.0 + 4.20));\n"
+		"      float metal = 0.33 + stripe * stripe * 0.34 + sweep * sweep * 0.18 + grooves * 0.025;\n"
+		"      disc.rgb = vec3(metal * 0.92, metal * 0.96, metal) + spectrum * (stripe * 0.10 + sweep * 0.055) + vec3(rim * 0.14);\n"
+		"      disc.a = 1.0;\n"
+		"    } else if (gloss < 0.5 && v_color.a < 0.5) {\n"
+		"      float inner_layer = step(0.10, v_color.a);\n"
+		"      float sweep = max(0.0, 1.0 - abs(dot(p, light_dir) + 0.12) * 6.0);\n"
+		"      float fine = 0.5 + 0.5 * sin(radius * 132.0);\n"
+		"      float ring_a = max(0.0, 1.0 - abs(radius - 0.30) * 95.0);\n"
+		"      float ring_b = max(0.0, 1.0 - abs(radius - 0.145) * 125.0);\n"
+		"      vec3 spectrum = 0.5 + 0.5 * vec3(sin(radius * 59.0), sin(radius * 59.0 + 2.10), sin(radius * 59.0 + 4.20));\n"
+		"      vec3 dark = mix(vec3(0.010, 0.007, 0.018), vec3(0.028, 0.019, 0.040), inner_layer);\n"
+		"      disc.rgb = dark + vec3(0.10, 0.085, 0.13) * sweep * sweep * sweep\n"
+		"        + spectrum * sweep * (0.018 + fine * 0.018) + vec3((ring_a + ring_b) * 0.085 + rim * 0.035);\n"
+		"      disc.a = 1.0;\n"
+		"    }\n"
+		"    color = disc.rgb;\n"
+		"    base.a = disc.a;\n"
+		"  }\n"
 		"  gl_FragColor = vec4(color * u_params.x, base.a);\n"
 		"}\n";
 	static const char *const attributes[] = { "in_pos", "in_normal", "in_uv", "in_color" };
@@ -148,6 +190,8 @@ static bool init_3d(void)
 	s_params_loc = glGetUniformLocation(s_program3d, "u_params");
 	s_tint_loc = glGetUniformLocation(s_program3d, "u_tint");
 	s_eye_loc = glGetUniformLocation(s_program3d, "u_eye");
+	s_disc_loc = glGetUniformLocation(s_program3d, "u_disc");
+	s_disc_center_loc = glGetUniformLocation(s_program3d, "u_disc_center");
 	glUseProgram(s_program3d);
 	glUniform1i(glGetUniformLocation(s_program3d, "u_texture"), 0);
 	glUseProgram(0);
@@ -381,6 +425,10 @@ void ui_gl3d_draw(const UiVertex3D *vertices, int count, unsigned texture, const
 	glUniformMatrix4fv(s_model_loc, 1, GL_FALSE, model);
 	glUniform4f(s_params_loc, light, (flags & UI3D_EMISSIVE) ? 1.0f : 0.0f, material->specular,
 		material->shininess > 1.0f ? material->shininess : 1.0f);
+	glUniform4f(s_disc_loc, (flags & UI3D_DISC) ? 1.0f : 0.0f, material->disc_part, material->sin_yaw,
+		material->sin_pitch);
+	glUniform4f(s_disc_center_loc, material->disc_center[0], material->disc_center[1], material->disc_center[2],
+		material->disc_radius > 0.0f ? material->disc_radius : 1.0f);
 	glUniform4f(s_tint_loc, (tint & 0xff) / 255.0f, ((tint >> 8) & 0xff) / 255.0f,
 		((tint >> 16) & 0xff) / 255.0f, ((tint >> 24) & 0xff) / 255.0f);
 	glBindTexture(GL_TEXTURE_2D, texture);

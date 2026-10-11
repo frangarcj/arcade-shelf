@@ -38,7 +38,10 @@ void ui_gl3d_begin(int x, int y, int width, int height, int framebuffer_height,
 	const float view_projection[16], const float eye[3]);
 enum {
 	UI3D_EMISSIVE = 1, /* lit from inside: no diffuse shading (screen, marquee) */
-	UI3D_BLEND = 2     /* alpha blended, no depth writes (shadows) */
+	UI3D_BLEND = 2,    /* alpha blended, no depth writes (shadows) */
+	/* An optical disc, shaded as PCSX AwO's selector does (see disc3d.cpp):
+	 * UiMaterial.disc gives the part and the turn, not the key light. */
+	UI3D_DISC = 4
 };
 /* How a surface takes the light. */
 typedef struct {
@@ -46,6 +49,10 @@ typedef struct {
 	float specular;  /* highlight strength, 0 for matte */
 	float shininess; /* highlight size: larger is tighter */
 	int flags;       /* UI3D_* */
+	/* UI3D_DISC: centre (model space) and radius of the disc; part: 0 body
+	 * (vertex alpha marks the data face 0, inner layer 0.25, edges 1),
+	 * 1 printed label, 2 silver face without a label; sin of the turn. */
+	float disc_center[3], disc_radius, disc_part, sin_yaw, sin_pitch;
 } UiMaterial;
 /* Draws triangles with a model matrix, lit per pixel by a key light and a
  * cool rim light; light scales the result (dimmed neighbours). */

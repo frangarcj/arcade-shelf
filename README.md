@@ -121,10 +121,11 @@ build/viewer --headless --script "R,R,D,SR,-" --step-frames 20 --shots /tmp/step
 
 ## Credits
 
-- Rinnegatamante: the 3D disc carousel of his PCSX AwO selector inspired
-  arcade-shelf; its ImGui renderer is adapted here with his permission; and
-  arcade-shelf runs on his vitaGL. PCSX AwO's PS1 covers fit the disc label
-  as they are.
+- Rinnegatamante: arcade-shelf grew from the 3D disc carousel of his
+  PCSX AwO selector. The disc (its mesh and its shading: label sheen, black
+  PS1 data face, silver face) and the ImGui renderer are adapted from that
+  selector with his permission. arcade-shelf runs on his vitaGL, and PCSX
+  AwO's PS1 covers fit the disc label as they are.
 - Dear ImGui by Omar Cornut; Roboto by Christian Robertson; rjson from
   libretro-common.
 - With `ADB=1`: Arcade Database by motoschifo, and ProgettoSnaps by AntoPisa.
