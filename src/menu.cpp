@@ -268,14 +268,6 @@ void options_draw(ImDrawList *draw)
 		y += kRowH;
 	}
 	draw->PopClipRect();
-	/* More above or below: fade the edge. */
-	if (options.scroll > 1.0f)
-		draw->AddRectFilledMultiColor(ImVec2(p0.x + 2, list_top), ImVec2(p1.x - 2, list_top + 18),
-			rgba(24, 29, 54), rgba(24, 29, 54), rgba(24, 29, 54, 0.0f), rgba(24, 29, 54, 0.0f));
-	if (options.scroll + visible < total - 1.0f)
-		draw->AddRectFilledMultiColor(ImVec2(p0.x + 2, list_bottom - 18), ImVec2(p1.x - 2, list_bottom),
-			rgba(24, 29, 54, 0.0f), rgba(24, 29, 54, 0.0f), rgba(24, 29, 54), rgba(24, 29, 54));
-
 	draw->AddLine(ImVec2(x0, list_bottom + 8), ImVec2(x1, list_bottom + 8), rgba(255, 255, 255, 0.08f));
 	if (chosen.description)
 		draw->AddText(font_small(), 15.0f, ImVec2(x0, list_bottom + 18), rgba(170, 175, 200), chosen.description,
