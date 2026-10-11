@@ -61,7 +61,6 @@ struct State {
 	float time;       /* seconds, for the idle animation */
 	float yaw, pitch; /* right stick turn of the selected object */
 	int posed_game;   /* the game yaw/pitch belong to */
-	float select_time;  /* seconds since the selected game changed */
 	float launch_time;  /* seconds into the launch animation; < 0 none */
 	std::string launch; /* what is launched when that animation ends */
 	bool adb_open;    /* the artwork download panel is shown */
@@ -392,17 +391,20 @@ unsigned kick_for(const std::string &system)
 	return s->kick.back().second;
 }
 
-const float kSelectSpin = 0.6f; /* seconds of the selection spin */
-const float kLaunch = 0.9f;     /* seconds of the launch animation */
+const float kLaunch = 0.9f; /* seconds of the launch animation */
+
+float ease_out(float t)
+{
+	t = std::max(0.0f, std::min(1.0f, t));
+	return 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
+}
 
 /* The selected object turns a little to show its side, sways gently and
  * follows the right stick; neighbours step back and turn toward the middle.
  * Discs lean back, as in PCSX AwO's selector, to show their face.
  *
- * Newly selected, it spins once and bounces (a disc turns in its plane, a
- * cabinet turns round with a hop). Launched, it is "inserted", as in the
- * Socket frontend: a disc spins up, shrinks and drops; a cabinet comes
- * toward the viewer. */
+ * Launched, it is inserted, as in the Socket frontend: a disc rises, turns
+ * flat and slides back into a slot; a cabinet comes toward the viewer. */
 void place(float model[16], int index, ShelfItemKind kind, float *yaw_out, float *pitch_out, float *spin_out)
 {
 	const float d = (float)index - s->scroll, distance = fabsf(d);
@@ -410,29 +412,20 @@ void place(float model[16], int index, ShelfItemKind kind, float *yaw_out, float
 	const float sway = 4.0f * sinf(s->time * 2.0f * (float)M_PI / 6.0f) * focus;
 	const bool disc = kind == SHELF_DISC;
 	float yaw = (disc ? -7.0f - d * 18.0f : -10.0f - d * 30.0f) + sway + s->yaw * focus;
-	const float pitch = (disc ? -25.0f : 0.0f) + s->pitch * focus;
+	float pitch = (disc ? -25.0f : 0.0f) + s->pitch * focus;
 	float x = d * 1.32f, y = 0.0f, z = -std::min(distance, 2.5f) * 1.35f, spin = 0.0f, scale = 1.0f;
-	if (index == s->game) {
-		const float t = std::min(1.0f, s->select_time / kSelectSpin);
-		const float ease = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
-		const float bounce = sinf((float)M_PI * t) * (1.0f - t);
+	if (index == s->game && s->launch_time >= 0.0f) {
+		const float l = std::min(1.0f, s->launch_time / kLaunch);
 		if (disc) {
-			spin = -360.0f * (1.0f - ease);
-			scale = 1.0f + 0.10f * bounce;
+			const float rise = ease_out(l / 0.4f), insert = ease_out((l - 0.35f) / 0.65f);
+			y += 0.55f * rise;
+			yaw += (0.0f - yaw) * rise;
+			pitch += (-90.0f - pitch) * insert;
+			z -= 2.4f * insert * insert;
+			spin = -200.0f * l;
 		} else {
-			yaw += 360.0f * (1.0f - ease);
-			y += 0.18f * sinf((float)M_PI * t);
-		}
-		if (s->launch_time >= 0.0f) {
-			const float l = std::min(1.0f, s->launch_time / kLaunch);
-			if (disc) {
-				spin -= 900.0f * l * l;
-				scale *= 1.0f - 0.55f * l * l;
-				y -= 0.9f * l * l;
-			} else {
-				z += 2.6f * l * l;
-				y -= 0.35f * l * l;
-			}
+			z += 2.6f * l * l;
+			y -= 0.35f * l * l;
 		}
 	}
 	mat4_place_tilted(model, x, y, z, yaw, pitch, disc ? DISC3D_CENTER_Y : 0.95f, spin, scale);
@@ -808,9 +801,7 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 	if (s->posed_game != s->game) {
 		s->posed_game = s->game;
 		s->yaw = s->pitch = 0.0f;
-		s->select_time = 0.0f;
 	}
-	s->select_time += io.DeltaTime;
 	if (fabsf(input->stick_x) > 0.2f)
 		s->yaw = fmodf(s->yaw + input->stick_x * 150.0f * io.DeltaTime, 360.0f);
 	if (fabsf(input->stick_y) > 0.2f)

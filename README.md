@@ -56,11 +56,10 @@ Controls:
 | Cross or Start | Play |
 | Circle | Exit |
 
-A newly selected object spins once and bounces: a disc turns in its plane
-under a sheen that stays with the light, and a cabinet turns round with a
-hop. Play first plays an insert animation, after the Socket frontend: a
-disc spins up, shrinks and drops, and a cabinet comes toward the viewer.
-The screen then fades to black, and `shelf_frame` returns `SHELF_LAUNCH`.
+Play first plays an insert animation, after the Socket frontend: a disc
+rises, turns flat and slides back into a slot, and a cabinet comes toward
+the viewer. The screen then fades to black, and `shelf_frame` returns
+`SHELF_LAUNCH`.
 
 The last game and the version chosen for each game are kept in
 `<data_root>/shelf.cfg`.
