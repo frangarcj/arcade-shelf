@@ -973,6 +973,14 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 		const float l = std::min(1.0f, s->launch_time / kLaunch);
 		const float fade_in = std::max(0.0f, (l - 0.6f) / 0.4f);
 		draw->AddRectFilled(ImVec2(0, 0), io.DisplaySize, rgba(0, 0, 0, fade_in * fade_in));
+	} else if (action == SHELF_LAUNCH) {
+		/* The frame left on screen while the game loads. */
+		const char *text = "Loading...";
+		const ImVec2 size = s->font_body->CalcTextSizeA(18.0f, FLT_MAX, 0.0f, text);
+		draw->AddRectFilled(ImVec2(0, 0), io.DisplaySize, rgba(0, 0, 0));
+		draw->AddText(s->font_body, 18.0f,
+			ImVec2(io.DisplaySize.x * 0.5f - size.x * 0.5f, io.DisplaySize.y * 0.5f - size.y * 0.5f),
+			rgba(200, 205, 220), text);
 	}
 #ifdef ARCADE_SHELF_ADB
 	if (s->adb_open)
