@@ -65,6 +65,7 @@ struct State {
 	std::string launch; /* what is launched when that animation ends */
 	bool adb_open;    /* the artwork download panel is shown */
 	ImGuiContext *imgui; /* ours, beside any the application has */
+	std::string notice;  /* shown over everything while set */
 	ImFont *font_small, *font_body, *font_title;
 };
 
@@ -565,6 +566,7 @@ void draw_frame(ImDrawList *draw)
 		centred_text(draw, s->font_title, 26.0f, 40, W - 40, H * 0.42f, rgba(235, 235, 245), "No games found");
 		centred_text(draw, s->font_body, 17.0f, 40, W - 40, H * 0.42f + 40, rgba(170, 175, 200), s->empty_hint.c_str());
 		float x = 32;
+		x = hint(draw, x, H - 24, SHELF_CROSS, "Rescan");
 		if (menu_has_options())
 			x = hint(draw, x, H - 24, SHELF_SQUARE, "Options");
 		if (menu_has_about())
@@ -638,6 +640,7 @@ void draw_frame(ImDrawList *draw)
 		x = hint(draw, x, fy, SHELF_SQUARE, "Options");
 	if (menu_has_about())
 		x = text_hint(draw, x, fy, "SELECT", "About");
+	x = text_hint(draw, x, fy, "R", "Rescan");
 #ifdef ARCADE_SHELF_ADB
 	x = text_hint(draw, x, fy, "L", "Artwork");
 #endif
@@ -893,6 +896,9 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 	}
 	if (pressed(buttons, SHELF_TRIANGLE, io.DeltaTime))
 		action = SHELF_QUIT;
+	if (pressed(buttons, SHELF_R, io.DeltaTime) ||
+		(s->games.empty() && (pressed(buttons, SHELF_CROSS, io.DeltaTime) || pressed(buttons, SHELF_START, io.DeltaTime))))
+		action = SHELF_RESCAN;
 	if (!s->games.empty()) {
 		Game &game = s->games[s->game];
 		if (pressed(buttons, SHELF_LEFT, io.DeltaTime) && s->game > 0)
@@ -954,8 +960,24 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 		options_draw(draw);
 	if (about_is_open())
 		about_draw(draw);
+	if (!s->notice.empty()) {
+		const ImVec2 size = s->font_body->CalcTextSizeA(18.0f, FLT_MAX, 0.0f, s->notice.c_str());
+		const ImVec2 c(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
+		draw->AddRectFilled(ImVec2(0, 0), io.DisplaySize, rgba(5, 7, 16, 0.6f));
+		draw->AddRectFilled(ImVec2(c.x - size.x * 0.5f - 28, c.y - 28), ImVec2(c.x + size.x * 0.5f + 28, c.y + 28),
+			rgba(24, 29, 54), 12.0f);
+		draw->AddRect(ImVec2(c.x - size.x * 0.5f - 28, c.y - 28), ImVec2(c.x + size.x * 0.5f + 28, c.y + 28),
+			rgba(255, 180, 0, 0.35f), 12.0f);
+		draw->AddText(s->font_body, 18.0f, ImVec2(c.x - size.x * 0.5f, c.y - size.y * 0.5f), rgba(245, 245, 250),
+			s->notice.c_str());
+	}
 	end_overlay();
 	return action;
+}
+
+void shelf_notice(const char *text)
+{
+	s->notice = text ? text : "";
 }
 
 void shelf_pause_open(const char *game, int slot, int save_states)

@@ -408,6 +408,11 @@ int main(int argc, char **argv)
 			printf("launch %s\n", launch);
 			if (!scripted)
 				running = false;
+		} else if (action == SHELF_RESCAN) {
+			/* The catalogue file again, edited or not. */
+			Catalogue fresh;
+			if (load_catalogue(catalog, &fresh))
+				shelf_set_games(fresh.games.data(), (int)fresh.games.size());
 		} else if (action == SHELF_QUIT && !scripted) {
 			running = false;
 		}

@@ -112,8 +112,10 @@ typedef struct {
 } ShelfConfig;
 
 /* shelf_frame: Cross launches (after its animation), Triangle quits,
- * Square opens the options, Select the credits. */
-enum { SHELF_NONE, SHELF_LAUNCH, SHELF_QUIT };
+ * Square opens the options, Select the credits. R (or Cross with no games)
+ * asks for SHELF_RESCAN: the application lists its games again and calls
+ * shelf_set_games. */
+enum { SHELF_NONE, SHELF_LAUNCH, SHELF_QUIT, SHELF_RESCAN };
 
 /* Call with the GL context current. The configuration is copied. Returns
  * 0 if the GL resources cannot be made. */
@@ -125,6 +127,9 @@ void shelf_set_games(const ShelfGame *games, int count);
 /* Draws one frame into the bound framebuffer. On SHELF_LAUNCH, launch
  * holds the chosen version's launch string. */
 int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size);
+/* A notice over the shelf ("Scanning games...") from the next frame until
+ * it is cleared with NULL; draw a frame after setting it before slow work. */
+void shelf_notice(const char *text);
 
 /* The pause menu, over a game: resume, restart, save states, options,
  * close. The application draws the game's last frame, then calls

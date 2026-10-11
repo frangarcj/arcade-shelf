@@ -56,6 +56,7 @@ Controls:
 | Cross or Start | Play |
 | Square | Options (when the application gives some) |
 | Select | About: the application's credits (`ShelfConfig.about`) |
+| R (or Cross with no games) | Rescan: `shelf_frame` returns `SHELF_RESCAN` |
 | Triangle | Exit |
 
 Play first plays an insert animation, after the Socket frontend: a disc
