@@ -64,6 +64,7 @@ struct State {
 	float launch_time;  /* seconds into the launch animation; < 0 none */
 	std::string launch; /* what is launched when that animation ends */
 	bool adb_open;    /* the artwork download panel is shown */
+	ImGuiContext *imgui; /* ours, beside any the application has */
 	ImFont *font_small, *font_body, *font_title;
 };
 
@@ -707,7 +708,8 @@ int shelf_init(const ShelfConfig *config)
 		s->styles.push_back(config->styles[i]);
 		s->styles.back().system = s->style_names[i].c_str();
 	}
-	ImGui::CreateContext();
+	s->imgui = ImGui::CreateContext();
+	ImGui::SetCurrentContext(s->imgui);
 	ImGuiIO &io = ImGui::GetIO();
 	io.IniFilename = NULL;
 	io.DisplaySize = ImVec2((float)config->width, (float)config->height);
@@ -721,6 +723,7 @@ int shelf_init(const ShelfConfig *config)
 
 void shelf_set_games(const ShelfGame *games, int count)
 {
+	ImGui::SetCurrentContext(s->imgui);
 	if (!s->games.empty())
 		save_config();
 	free_art();
@@ -754,6 +757,7 @@ void shelf_shutdown(void)
 {
 	if (!s)
 		return;
+	ImGui::SetCurrentContext(s->imgui);
 #ifdef ARCADE_SHELF_ADB
 	adb_scraper_cancel();
 	adb_scraper_join();
@@ -767,7 +771,7 @@ void shelf_shutdown(void)
 	disc3d_shutdown();
 	cabinet3d_shutdown();
 	ui_gl_shutdown();
-	ImGui::DestroyContext();
+	ImGui::DestroyContext(s->imgui);
 	delete s;
 	s = NULL;
 }
@@ -776,6 +780,7 @@ int shelf_frame(const ShelfInput *input, char *launch, size_t launch_size)
 {
 	int action = SHELF_NONE;
 	unsigned buttons = input->buttons;
+	ImGui::SetCurrentContext(s->imgui);
 	ImGuiIO &io = ImGui::GetIO();
 	s->frame++;
 	io.DeltaTime = input->dt > 0.0f ? input->dt : 1.0f / 60.0f;

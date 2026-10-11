@@ -4,12 +4,21 @@
 #                        (VITAGL_DIR=... to use the application's vitaGL headers)
 #   make ADB=1 ...       also the artwork download from Arcade Database
 #                        (libcurl; see src/adb_scraper.h before shipping it)
+#   make vita IMGUI=system
+#                        use VitaSDK's Dear ImGui 1.61 (libimgui), for an
+#                        application that links it already
 # The library builds its own Dear ImGui 1.61 (deps/imgui): an application
-# that uses it must not link another ImGui.
+# that uses it must not link another ImGui, unless IMGUI=system.
 
 ADB ?= 0
-SOURCES_CXX := src/shelf.cpp src/gl.cpp src/cabinet3d.cpp src/disc3d.cpp \
-	deps/imgui/imgui.cpp deps/imgui/imgui_draw.cpp
+IMGUI ?= bundled
+SOURCES_CXX := src/shelf.cpp src/gl.cpp src/cabinet3d.cpp src/disc3d.cpp
+ifeq ($(IMGUI),bundled)
+SOURCES_CXX += deps/imgui/imgui.cpp deps/imgui/imgui_draw.cpp
+IMGUI_FLAGS := -Ideps/imgui
+else ifneq ($(IMGUI),system)
+$(error IMGUI must be bundled or system)
+endif
 SOURCES_C :=
 DEFINES :=
 ifeq ($(ADB),1)
@@ -23,7 +32,7 @@ PREFIX := arm-vita-eabi-
 CC := $(PREFIX)gcc
 CXX := $(PREFIX)g++
 AR := $(PREFIX)ar
-BUILD := build-vita$(if $(filter 1,$(ADB)),-adb,)
+BUILD := build-vita$(if $(filter 1,$(ADB)),-adb,)$(if $(filter system,$(IMGUI)),-sysimgui,)
 ARCH_FLAGS := -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -marm -fsingle-precision-constant
 # VITAGL_DIR: the application's vitaGL checkout, if not VitaSDK's.
 PLATFORM_FLAGS := $(if $(VITAGL_DIR),-I$(VITAGL_DIR)/source,) -I$(VITASDK)/arm-vita-eabi/include
@@ -38,7 +47,7 @@ SDL3_LIBS := $(shell pkg-config --libs sdl3)
 PLATFORM_FLAGS := $(shell pkg-config --cflags libpng) $(SDL3_CFLAGS)
 endif
 
-CFLAGS := $(ARCH_FLAGS) -O2 -g -Wall -Iinclude -Isrc -Ideps/imgui -I$(BUILD) $(PLATFORM_FLAGS) $(DEFINES)
+CFLAGS := $(ARCH_FLAGS) -O2 -g -Wall -Iinclude -Isrc $(IMGUI_FLAGS) -I$(BUILD) $(PLATFORM_FLAGS) $(DEFINES)
 CXXFLAGS := $(CFLAGS) -std=gnu++17
 LIB := $(BUILD)/libarcadeshelf.a
 OBJECTS := $(addprefix $(BUILD)/,$(SOURCES_CXX:.cpp=.o) $(SOURCES_C:.c=.o))
@@ -76,6 +85,6 @@ $(BUILD)/%.o: %.c Makefile
 	$(CC) $(CFLAGS) -std=gnu99 -MMD -MP -c $< -o $@
 
 clean:
-	rm -rf build build-adb build-vita build-vita-adb
+	rm -rf build build-adb build-vita*
 
 -include $(OBJECTS:.o=.d)
